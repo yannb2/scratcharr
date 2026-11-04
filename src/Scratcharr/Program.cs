@@ -1,4 +1,5 @@
 using Scratcharr.Clean;
+using Arrkit.Hosting;
 using Arrkit.Logging;
 using System.Globalization;
 using Scratcharr;
@@ -14,6 +15,9 @@ CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ASP.NET's data-protection keys (antiforgery tokens) in /config/keys, so they survive an update.
+DataProtectionKeys.PersistKeysIn(builder, Path.GetDirectoryName(builder.Configuration["Scratcharr:DatabasePath"] ?? "/config/scratcharr.db") ?? "/config", "Scratcharr");
 
 builder.Services.AddOptions<ScratcharrOptions>()
     .Bind(builder.Configuration.GetSection(ScratcharrOptions.Section))
