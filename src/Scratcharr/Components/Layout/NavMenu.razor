@@ -32,6 +32,12 @@
                 </NavLink>
             </li>
             <li class="nav-item">
+                <NavLink class="nav-link" href="usb" @onclick="Close">
+                    <i class="bi bi-usb-drive"></i>
+                    <span>From USB</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
                 <NavLink class="nav-link" href="jobs" @onclick="Close">
                     <i class="bi bi-list-task"></i>
                     <span>Jobs@(_jobs > 0 ? $" ({_jobs})" : "")</span>

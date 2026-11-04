@@ -6,7 +6,7 @@ services:
     user: 1000:1000
     environment:
       TZ: America/Toronto
-      Scratcharr__AllowChanges: "false"            # true turns on Unpack (then drop :ro on /downloads below)
+      Scratcharr__AllowChanges: "false"            # true turns on Unpack and From USB (then drop :ro on /downloads below)
       Scratcharr__RipparrUrl: http://10.1.72.11:8186   # for Open in Ripparr links
       Scratcharr__Qbittorrent__Url: http://gluetun:8080
       Scratcharr__Qbittorrent__ApiKey: ${QBT_API_KEY:-}     # qBittorrent 5.2+; or the login below
@@ -24,6 +24,6 @@ services:
       - 8188:8188
     volumes:
       - /config/scratcharr:/config
-      - /downloads:/downloads:ro                   # read-only is enough to find; Unpack needs read-write
-      - /mnt/pc:/mnt/pc:ro,rslave                  # USB disks (/mnt/pc/usbxx), for "From USB" later
+      - /downloads:/downloads:ro                   # read-only is enough to find; Unpack and From USB need read-write
+      - /mnt/pc:/mnt/pc:ro,rslave                  # USB disks (/mnt/pc/usbxx) for From USB: always read-only
     restart: unless-stopped

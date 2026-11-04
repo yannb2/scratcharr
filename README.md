@@ -1,14 +1,14 @@
 # Scratcharr
 
 Manages the downloads folder (`/downloads` on the `scratch` pool): it finds what nothing claims any more,
-says who will remove each download and when, and (in later versions) unpacks archived ISOs for Ripparr,
-copies folders in from USB drives and cleans up. Same look as Ripparr and the Muxarr fork, shared code from
+says who will remove each download and when, unpacks archived ISOs for Ripparr, copies files and folders in
+from USB disks, and (in a later version) cleans up. Same look as Ripparr and the Muxarr fork, shared code from
 [arrkit](https://github.com/yannb2/arrkit).
 
 **Read-only by default.** It reads qBittorrent, SABnzbd, Radarr, Sonarr and Lidarr and walks the folders; it
 never changes a file, a torrent or a setting, and the downloads volume can be mounted `:ro`. Unpacking (v0.2)
-needs `Scratcharr__AllowChanges=true` and `/downloads` mounted read-write; even then the archives themselves
-are only read.
+and copying from USB (v0.3) need `Scratcharr__AllowChanges=true` and `/downloads` mounted read-write; even then
+the archives and the USB disks are only read.
 
 ## What it shows
 
@@ -18,7 +18,8 @@ are only read.
 | Downloads | Every item with its verdict, client state, arr app, size, age and when it leaves. Filters live in the URL |
 | Item | The evidence: torrent, SABnzbd job, arr queue and history, the largest files |
 | Unpack | Every archive set (`.partNN.rar`, `.rar` + `.r00`, `.7z`, `.7z.001`, `.zip`) per item: parts, size, Look inside (7-Zip's listing: ISOs, BDMV, videos, unpacked size), a folder name, Unpack |
-| Jobs | Unpack jobs one at a time with a progress bar, the 7-Zip log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
+| From USB | The disks in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Tick, pick Auto / import / discs, Copy |
+| Jobs | Unpacks and copies one at a time with a progress bar, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
 | Settings check | Per download client category: its folder, which arr app uses it, who removes finished downloads. Warnings about gaps |
 | Tools | 7-Zip's version, its pin and the newest release |
 | Settings | Connections (saved in the database, they win over the environment variables) and the running values |
@@ -61,8 +62,12 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | `Protected__N` | `ripparr`, `.recycle` | Never judged or touched |
 | `CategoryFolders__N` | radarr, sonarr, lidarr, books, manual, prowlarr | Opened even when no client has the category yet |
 | `ScanMinutes` | 15 | Minutes between scans (Scan now starts one at any time) |
-| `AllowChanges` | false | Off: read-only. On: Unpack works (mount `/downloads` read-write) |
+| `AllowChanges` | false | Off: read-only. On: Unpack and From USB work (mount `/downloads` read-write) |
 | `DiscsFolder` | `discs` | Where Unpack puts each archive's contents, one folder each; Ripparr finds discs there |
+| `ImportFolder` | `import` | Where From USB puts videos and other files, for Manual Import in Radarr or Sonarr |
+| `UsbRoot` | `/mnt/pc` | The USB disks, one folder each; mount it `:ro,rslave` |
+| `UsbSkip__N` | `iso-mounts` | Folders in `/mnt/pc` that are not disks (Ripparr's ISO mounts): not listed |
+| `VerifyCopies` | true | Read each copy back and compare its xxHash with the original's before it gets its real name |
 | `RipparrUrl` | | Ripparr as the browser reaches it (`http://10.1.72.11:8186`), for Open in Ripparr links |
 | `Qbittorrent__Url/ApiKey/Username/Password` | | `http://gluetun:8080`; the API key (qBittorrent 5.2+, Options > WebUI) wins over the login; leave both empty when the subnet is whitelisted |
 | `Sabnzbd__Url/ApiKey` | | `http://sabnzbd:8080` |
@@ -91,11 +96,28 @@ folder (and nothing else). Before queuing, and again right before it runs, Scrat
 Password-protected archives fail at once with a clear message. SABnzbd's incomplete folder is not offered,
 because SABnzbd unpacks its own jobs.
 
+### From USB
+
+The page lists the folders in `/mnt/pc` (one per USB disk or PC share, except `iso-mounts`; an empty mount point
+shows as *not mounted*) and lets you browse them. **Auto** sends ISO files and folders holding a BDMV folder or an ISO to `/downloads/discs/` (Ripparr),
+and everything else to `/downloads/import/` (Manual Import in Radarr or Sonarr); the menu can force one or the other.
+Each ticked entry becomes one copy job, keeping its name.
+
+The copy goes to `<name>.copying` and is renamed when complete. Each file is hashed (xxHash3) as it is read from the
+USB disk; with `VerifyCopies` on, the copy is then read back and compared, so a bad cable or a failing disk ends in a
+failed job, not a broken file. Modified times are kept; symbolic links are skipped. Copy only: nothing is ever
+deleted from the USB disk, which stays mounted `:ro`. Before queuing, and again right before it runs:
+
+- Changes are on.
+- The source is under `/mnt/pc` and still there.
+- Nothing by that name exists in the target folder, and no job is copying it already.
+- The size plus 1 GiB fits in the free space.
+
 ## Roadmap
 
 1. v0.1 Find (read-only)
-2. v0.2 Unpack: `.rar`/`.7z`/`.zip` sets into `/downloads/discs/<name>/` for Ripparr, the torrent keeps seeding — this version
-3. v0.3 From USB: browse `/mnt/pc/usbxx`, copy into `/downloads/import` or `/downloads/discs`, checked after
+2. v0.2 Unpack: `.rar`/`.7z`/`.zip` sets into `/downloads/discs/<name>/` for Ripparr, the torrent keeps seeding
+3. v0.3 From USB: browse `/mnt/pc/usbxx`, copy into `/downloads/import` or `/downloads/discs`, checked after — this version
 4. v0.4 Clean up: recycle to `/downloads/.recycle` (7 days), remove through qBittorrent and SABnzbd
 
 ## Development

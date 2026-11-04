@@ -1,3 +1,5 @@
+using Scratcharr.Scan;
+
 namespace Scratcharr.Options;
 
 /// <summary>
@@ -40,6 +42,18 @@ public class ScratcharrOptions
 
     /// <summary>Where unpacked archives go, one folder each (relative to the downloads root). Ripparr finds discs there.</summary>
     public string DiscsFolder { get; set; } = "discs";
+
+    /// <summary>Where "From USB" copies videos for Radarr/Sonarr Manual Import (relative to the downloads root).</summary>
+    public string ImportFolder { get; set; } = "import";
+
+    /// <summary>The USB disks and PC shares, one folder each (/mnt/pc/usb01...). Only read: copies never change them.</summary>
+    public string UsbRoot { get; set; } = "/mnt/pc";
+
+    /// <summary>Folders in the USB root that are not disks: Ripparr's ISO mounts. Hidden on the From USB page.</summary>
+    public List<string> UsbSkip { get; set; } = ["iso-mounts"];
+
+    /// <summary>After a copy from USB, read the copy back and compare its xxHash with the original's.</summary>
+    public bool VerifyCopies { get; set; } = true;
 
     /// <summary>
     /// Ripparr's address as the browser reaches it (http://10.1.72.11:8186), for the "Open in Ripparr" links.
@@ -111,6 +125,8 @@ public class ScratcharrOptions
 
         Protected = Protected.Select(Absolute).ToList();
         DiscsFolder = Absolute(DiscsFolder);
+        ImportFolder = Absolute(ImportFolder);
+        UsbRoot = Paths.Clean(System.IO.Path.GetFullPath(UsbRoot));
         if (ScanMinutes < 1)
         {
             ScanMinutes = 1;
