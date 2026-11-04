@@ -31,6 +31,10 @@ jobs:
       - name: Bump script tests
         run: python3 -I -m unittest discover -s .github/scripts -p 'test_*.py' -v
 
+      # The unpack tests run the real 7-Zip (7zz, as in the image).
+      - name: Install 7-Zip
+        run: sudo apt-get update -q && sudo apt-get install -y -q 7zip && 7zz | head -2
+
       - name: Test
         run: dotnet test --configuration Release
 

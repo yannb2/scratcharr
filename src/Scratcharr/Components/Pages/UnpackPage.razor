@@ -1,0 +1,239 @@
+@page "/unpack"
+@implements IDisposable
+@inject ScanService Scans
+@inject JobQueue Queue
+@inject Toasts Toasts
+@inject NavigationManager Navigation
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+@using Scratcharr.Jobs
+@using Scratcharr.Unpack
+
+<PageTitle>Unpack · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <h2 class="mb-0 me-auto">Unpack</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="jobs"><i class="bi bi-list-task me-1"></i>Jobs</a>
+    <ScanButton Scanned="Load"/>
+</div>
+<p class="text-body-secondary small">
+    Archives (<code>.rar</code> sets, <code>.7z</code>, <code>.zip</code>) found in the downloads. Unpack copies what is inside into
+    <code>@Options.Value.DiscsFolder/&lt;name&gt;</code>, where Ripparr finds ISOs and BDMV folders. The archive is only read,
+    so a torrent keeps seeding.
+</p>
+
+@if (!Options.Value.AllowChanges)
+{
+    <div class="alert alert-secondary small"><i class="bi bi-lock me-1"></i>@UnpackPlan.ChangesOff You can still look inside.</div>
+}
+
+@if (Item != null && _rows.Count > 0)
+{
+    <p class="small"><a href="unpack"><i class="bi bi-arrow-left me-1"></i>All archives</a></p>
+}
+
+@if (Scans.Last == null)
+{
+    <p class="text-body-secondary">The first scan is still running.</p>
+}
+else if (_rows.Count == 0)
+{
+    <p class="text-body-secondary">No archives in the downloads@(Item != null ? " item you picked" : "").</p>
+}
+else
+{
+    @foreach (var group in _rows.GroupBy(r => r.Report))
+    {
+        var report = group.Key;
+        <div class="card mb-3">
+            <div class="card-header d-flex align-items-center flex-wrap gap-2">
+                <i class="bi @(report.Item.IsDirectory ? "bi-folder" : "bi-file-earmark-zip")"></i>
+                <a class="fw-semibold text-break me-auto" href="item/@report.Id">@report.Item.Name</a>
+                <span class="small text-body-secondary">@report.Item.Folder@(report.Item.Category.Length > 0 ? $" / {report.Item.Category}" : "")</span>
+                <VerdictBadge Verdict="report.Verdict"/>
+            </div>
+            <ul class="list-group list-group-flush">
+                @foreach (var row in group)
+                {
+                    var set = row.Set;
+                    <li class="list-group-item">
+                        <div class="d-flex flex-wrap align-items-baseline gap-2">
+                            <i class="bi bi-file-earmark-zip text-primary"></i>
+                            <span class="text-break fw-semibold">@set.RelativeStart</span>
+                            <span class="small text-body-secondary">
+                                @(set.Parts.Count == 1 ? "1 file" : $"{set.Parts.Count} parts"), @Format.Size(set.Size)
+                            </span>
+                        </div>
+
+                        @if (row.Listing is { } listing)
+                        {
+                            <div class="small mt-1 @(listing.Error != null ? "text-danger" : "")">
+                                <i class="bi @(listing.Error != null ? "bi-exclamation-triangle" : "bi-box-seam") me-1"></i>
+                                @listing.Summary@(listing.Error == null ? $", {Format.Size(listing.UnpackedSize)} unpacked" : "")
+                            </div>
+                            @if (listing.Error == null && row.ShowFiles)
+                            {
+                                <ul class="small sv-path mt-1 mb-0">
+                                    @foreach (var entry in listing.Entries.Where(e => !e.IsFolder).OrderByDescending(e => e.Size).Take(15))
+                                    {
+                                        <li>@entry.Path <span class="text-body-secondary">@Format.Size(entry.Size)</span></li>
+                                    }
+                                </ul>
+                            }
+                        }
+
+                        @if (row.Existing is { } existing)
+                        {
+                            <div class="small mt-2">
+                                <i class="bi bi-check-circle text-success me-1"></i>Already unpacked in <span class="sv-path">@existing</span>
+                                <DiscLinks Folder="@existing"/>
+                            </div>
+                        }
+                        else if (row.Queued)
+                        {
+                            <div class="small mt-2"><i class="bi bi-hourglass-split me-1"></i>Queued. <a href="jobs">See the jobs</a>.</div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                <div class="input-group input-group-sm flex-nowrap" style="max-width: 36rem; min-width: 0">
+                                    <span class="input-group-text" title="@Options.Value.DiscsFolder">@DiscsLabel/</span>
+                                    <input class="form-control" @bind="row.Name" aria-label="Folder name"/>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary" disabled="@row.Busy" @onclick="() => Look(row)">
+                                    <i class="bi bi-search me-1"></i>@(row.Listing == null ? "Look inside" : row.ShowFiles ? "Hide files" : "Show files")
+                                </button>
+                                <button class="btn btn-sm btn-primary" disabled="@(row.Busy || !Options.Value.AllowChanges || row.Listing?.Error != null)" @onclick="() => Unpack(row)"
+                                        title="@(Options.Value.AllowChanges ? "Unpack into the folder on the left" : UnpackPlan.ChangesOff)">
+                                    @if (row.Busy)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-box-arrow-up me-1"></i>
+                                    }
+                                    Unpack
+                                </button>
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+<ConfirmDialog @ref="_confirm"/>
+
+@code {
+    [SupplyParameterFromQuery] public string? Item { get; set; }
+
+    private sealed class Row
+    {
+        public required ItemReport Report { get; init; }
+        public required ArchiveSet Set { get; init; }
+        public string Name { get; set; } = "";
+        public ArchiveListing? Listing { get; set; }
+        public bool ShowFiles { get; set; }
+        public bool Busy { get; set; }
+        public string? Existing { get; set; }
+        public bool Queued { get; set; }
+    }
+
+    private List<Row> _rows = [];
+
+    /// <summary>The discs folder as it reads inside /downloads ("discs"), its full path in the tooltip.</summary>
+    private string DiscsLabel => Paths.IsUnder(Options.Value.DiscsFolder, Options.Value.DownloadsRoot)
+        ? System.IO.Path.GetRelativePath(Options.Value.DownloadsRoot, Options.Value.DiscsFolder)
+        : Options.Value.DiscsFolder;
+    private ConfirmDialog? _confirm;
+
+    protected override void OnInitialized()
+    {
+        Load();
+        Queue.Changed += OnJobs;
+    }
+
+    protected override void OnParametersSet() => Load();
+
+    private void Load()
+    {
+        var items = Scans.Last?.Items ?? [];
+        var picked = items.Where(i => UnpackPlan.Offers(i.Item) && (Item == null || i.Id == Item)).ToList();
+        var old = _rows.ToDictionary(r => r.Set.Start);
+        _rows = picked
+            .SelectMany(report => ArchiveSets.Find(report.Item.Path).Select(set =>
+                old.TryGetValue(set.Start, out var kept)
+                    ? new Row { Report = report, Set = set, Name = kept.Name, Listing = kept.Listing, ShowFiles = kept.ShowFiles }
+                    : new Row { Report = report, Set = set, Name = set.Name }))
+            .ToList();
+        Mark();
+    }
+
+    /// <summary>Which sets already have a folder (unpacked earlier) or a job waiting.</summary>
+    private void Mark()
+    {
+        var jobs = Queue.Jobs();
+        foreach (var row in _rows)
+        {
+            var done = jobs.FirstOrDefault(j => j.State == JobState.Done && j.Source == row.Set.Start && Directory.Exists(j.Target));
+            var target = UnpackPlan.DefaultTarget(Options.Value, row.Set);
+            row.Existing = done?.Target ?? (Directory.Exists(target) ? target : null);
+            row.Queued = jobs.Any(j => j.Open && j.Source == row.Set.Start);
+        }
+    }
+
+    private async Task Look(Row row)
+    {
+        if (row.Listing != null)
+        {
+            row.ShowFiles = !row.ShowFiles;
+            return;
+        }
+
+        row.Busy = true;
+        row.Listing = await SevenZip.ListAsync(Options.Value.Tools.SevenZip, row.Set.Start, CancellationToken.None);
+        row.ShowFiles = row.Listing.Error == null;
+        row.Busy = false;
+    }
+
+    private async Task Unpack(Row row)
+    {
+        row.Busy = true;
+        row.Listing ??= await SevenZip.ListAsync(Options.Value.Tools.SevenZip, row.Set.Start, CancellationToken.None);
+        row.Busy = false;
+        if (row.Listing.Error != null)
+        {
+            Toasts.Error(row.Listing.Error);
+            return;
+        }
+
+        var target = UnpackPlan.Target(Options.Value, row.Name) ?? row.Name;
+        var ok = await _confirm!.Ask("Unpack?",
+            $"{row.Listing.Summary}, {Format.Size(row.Listing.UnpackedSize)}, into {target}. The archive stays where it is.",
+            "Unpack");
+        if (!ok)
+        {
+            return;
+        }
+
+        var problem = Queue.QueueUnpack(row.Set, row.Name, row.Listing);
+        if (problem != null)
+        {
+            Toasts.Error(problem);
+            return;
+        }
+
+        Toasts.Success($"Queued: {row.Name}. Follow it on the Jobs page.");
+        Mark();
+    }
+
+    private void OnJobs() => InvokeAsync(() =>
+    {
+        Mark();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Queue.Changed -= OnJobs;
+}

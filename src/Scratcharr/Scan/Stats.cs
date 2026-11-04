@@ -21,7 +21,13 @@ public sealed record Stats
     public DateTime? LastScan { get; init; }
     public int ToolUpdates { get; init; }
 
-    public static Stats From(ScanResult? scan, bool scanning, ToolStatusService tools)
+    /// <summary>Items holding archives (Unpack page).</summary>
+    public int Archives { get; init; }
+
+    /// <summary>Unpack jobs queued or running.</summary>
+    public int Jobs { get; init; }
+
+    public static Stats From(ScanResult? scan, bool scanning, ToolStatusService tools, int openJobs = 0)
     {
         var items = scan?.Items ?? [];
         var review = items.Where(i => i.Verdict.NeedsReview()).ToList();
@@ -39,7 +45,9 @@ public sealed record Stats
             FreeBytes = scan?.FreeBytes ?? 0,
             Scanning = scanning,
             LastScan = scan?.FinishedAt,
-            ToolUpdates = tools.UpdateCount
+            ToolUpdates = tools.UpdateCount,
+            Archives = items.Count(i => Scratcharr.Jobs.UnpackPlan.Offers(i.Item)),
+            Jobs = openJobs
         };
     }
 }

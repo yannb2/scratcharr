@@ -53,6 +53,17 @@ else
                 </div>
             </div>
 
+            @if (Scratcharr.Jobs.UnpackPlan.Offers(item))
+            {
+                <div class="card mb-3">
+                    <div class="card-body d-flex flex-wrap align-items-center gap-2">
+                        <i class="bi bi-file-earmark-zip text-primary"></i>
+                        <span class="me-auto">@(item.Archives == 1 ? "1 archive" : $"{item.Archives} archives") inside (.rar, .7z or .zip).</span>
+                        <a class="btn btn-sm btn-primary" href="unpack?item=@report.Id"><i class="bi bi-box-arrow-up me-1"></i>Unpack…</a>
+                    </div>
+                </div>
+            }
+
             @foreach (var torrent in report.Torrents)
             {
                 <div class="card mb-3">
@@ -215,11 +226,11 @@ else
                 <div class="card-body small text-body-secondary">
                     @if (Options.Value.AllowChanges)
                     {
-                        <span>Changes are allowed, but v0.1 has no actions yet: Unpack comes in v0.2, Recycle and Remove in v0.4.</span>
+                        <span>Changes are allowed. Archives are unpacked from the <a href="unpack">Unpack</a> page; Recycle and Remove come in v0.4.</span>
                     }
                     else
                     {
-                        <span>Read-only: nothing here changes a file. Unpack comes in v0.2, Recycle and Remove in v0.4, behind <code>Scratcharr__AllowChanges=true</code>.</span>
+                        <span>Read-only: nothing here changes a file. Unpack works with <code>Scratcharr__AllowChanges=true</code> (and /downloads mounted read-write); Recycle and Remove come in v0.4.</span>
                     }
                 </div>
             </div>

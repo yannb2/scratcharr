@@ -1,0 +1,115 @@
+@page "/jobs"
+@implements IDisposable
+@inject JobQueue Queue
+@inject Toasts Toasts
+@using Scratcharr.Jobs
+
+<PageTitle>Jobs · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <h2 class="mb-0 me-auto">Jobs</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="unpack"><i class="bi bi-file-earmark-zip me-1"></i>Unpack</a>
+</div>
+<p class="text-body-secondary small">
+    Unpack jobs run one at a time. 7-Zip writes into a <code>.unpacking</code> folder that gets its real name only when
+    everything is out, so Ripparr never sees half a disc. A failed or cancelled job removes that folder; the archive is never touched.
+</p>
+
+@if (_jobs.Count == 0)
+{
+    <p class="text-body-secondary">No jobs yet. Start one from <a href="unpack">Unpack</a>.</p>
+}
+else
+{
+    <div class="card">
+        <ul class="list-group list-group-flush">
+            @foreach (var job in _jobs)
+            {
+                <li class="list-group-item">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="badge text-bg-@job.State.Css()">@job.State</span>
+                        <span class="fw-semibold text-break me-auto">@job.Name</span>
+                        @if (job.Size > 0)
+                        {
+                            <span class="small text-body-secondary">@Format.Size(job.Size)</span>
+                        }
+                        <span class="small text-body-secondary" title="@Format.LocalDate(job.Finished ?? job.Started ?? job.Created)">
+                            @When(job)
+                        </span>
+                        @if (job.Open)
+                        {
+                            <button class="btn btn-sm btn-outline-danger py-0" @onclick="() => Cancel(job)"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+                        }
+                        @if (job.Log.Length > 0)
+                        {
+                            <button class="btn btn-sm btn-light border py-0" @onclick="() => Toggle(job.Id)">
+                                <i class="bi bi-journal-text me-1"></i>@(_open.Contains(job.Id) ? "Hide log" : "Log")
+                            </button>
+                        }
+                    </div>
+                    <div class="small text-body-secondary sv-path mt-1">@job.Source</div>
+                    <div class="small sv-path"><i class="bi bi-arrow-return-right me-1"></i>@job.Target</div>
+
+                    @if (job.State == JobState.Running && Queue.RunningId == job.Id)
+                    {
+                        <div class="progress mt-2" role="progressbar" aria-valuenow="@Queue.Progress" aria-valuemin="0" aria-valuemax="100" style="height: 1.1rem">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: @(Queue.Progress)%">@(Queue.Progress)%</div>
+                        </div>
+                    }
+                    @if (job.Message.Length > 0)
+                    {
+                        <div class="small mt-1 @(job.State == JobState.Failed ? "text-danger" : "")">@job.Message</div>
+                    }
+                    @if (job.State == JobState.Done && Directory.Exists(job.Target))
+                    {
+                        <div class="small"><DiscLinks Folder="@job.Target"/></div>
+                    }
+                    @if (_open.Contains(job.Id))
+                    {
+                        <pre class="small bg-body-tertiary border rounded p-2 mt-2 mb-0" style="max-height: 20rem; overflow: auto">@job.Log</pre>
+                    }
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<Job> _jobs = [];
+    private readonly HashSet<long> _open = [];
+
+    protected override void OnInitialized()
+    {
+        _jobs = Queue.Jobs();
+        Queue.Changed += OnChanged;
+    }
+
+    private static string When(Job job) => job switch
+    {
+        { Finished: { } finished, Started: { } started } => $"{Format.TimeAgo(finished)}, took {Format.Duration(finished - started)}",
+        { Started: { } started } => $"started {Format.TimeAgo(started)}",
+        _ => $"queued {Format.TimeAgo(job.Created)}"
+    };
+
+    private void Toggle(long id)
+    {
+        if (!_open.Remove(id))
+        {
+            _open.Add(id);
+        }
+    }
+
+    private void Cancel(Job job)
+    {
+        Queue.Cancel(job.Id);
+        Toasts.Show($"Cancelling {job.Name}.", "info");
+    }
+
+    private void OnChanged() => InvokeAsync(() =>
+    {
+        _jobs = Queue.Jobs();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Queue.Changed -= OnChanged;
+}

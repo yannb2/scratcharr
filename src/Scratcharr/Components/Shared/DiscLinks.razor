@@ -1,0 +1,47 @@
+@* The ISOs and BDMV folders in an unpacked folder, each with an "Open in Ripparr" link when Ripparr's address is set. *@
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+@using Scratcharr.Jobs
+
+@if (_discs.Count == 0)
+{
+    <span class="text-body-secondary">(no ISO or BDMV folder inside)</span>
+}
+else
+{
+    <ul class="list-unstyled mb-0 mt-1">
+        @foreach (var disc in _discs)
+        {
+            var link = UnpackPlan.RipparrLink(Options.Value, disc);
+            <li class="d-flex flex-wrap align-items-center gap-2">
+                <i class="bi bi-disc"></i>
+                <span class="sv-path">@Label(disc)</span>
+                @if (link != null)
+                {
+                    <a class="btn btn-sm btn-outline-primary py-0" href="@link" target="_blank" rel="noopener">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>Open in Ripparr
+                    </a>
+                }
+            </li>
+        }
+    </ul>
+    @if (string.IsNullOrWhiteSpace(Options.Value.RipparrUrl))
+    {
+        <div class="text-body-secondary small">Set <code>Scratcharr__RipparrUrl</code> to get Open in Ripparr links; Ripparr lists these under its Scratch source.</div>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public string Folder { get; set; } = "";
+
+    private IReadOnlyList<string> _discs = [];
+
+    protected override void OnParametersSet() => _discs = UnpackPlan.Discs(Folder);
+
+    /// <summary>The disc's path inside the folder; the folder's own name when the folder itself holds BDMV.</summary>
+    private string Label(string disc)
+    {
+        var relative = System.IO.Path.GetRelativePath(Folder, disc);
+        return relative == "." ? System.IO.Path.GetFileName(disc) : relative;
+    }
+}
