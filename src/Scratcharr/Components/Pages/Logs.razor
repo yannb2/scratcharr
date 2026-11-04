@@ -94,11 +94,11 @@ else
         Log.Changed += OnChanged;
     }
 
-    /// <summary>Lines at the picked level and above that contain the search text.</summary>
+    /// <summary>Lines at the picked level only (Errors also shows Critical) that contain the search text.</summary>
     private IEnumerable<LogLine> Shown => _lines.Where(l => _level switch
         {
-            "info" => l.Level >= LogLevel.Information,
-            "warning" => l.Level >= LogLevel.Warning,
+            "info" => l.Level == LogLevel.Information,
+            "warning" => l.Level == LogLevel.Warning,
             "error" => l.Level >= LogLevel.Error,
             _ => true
         })
