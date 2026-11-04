@@ -5,6 +5,14 @@ namespace Scratcharr;
 /// <summary>Turns numbers into the short text the pages show.</summary>
 public static class Format
 {
+    /// <summary>Seeding time for a table: "35 min", "41 h", "12 d" past 10 days.</summary>
+    public static string SeedTime(long seconds) => seconds switch
+    {
+        < 3600 => $"{seconds / 60} min",
+        < 240 * 3600 => $"{seconds / 3600} h",
+        _ => $"{seconds / 86400} d"
+    };
+
     public static string Size(long bytes)
     {
         string[] units = ["B", "KB", "MB", "GB", "TB", "PB"];

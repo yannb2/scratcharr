@@ -243,4 +243,22 @@ public sealed class ClassifierTests
         Assert.AreNotEqual(Ids.For("/downloads/x"), Ids.For("/downloads/y"));
         Assert.AreEqual(16, Ids.For("/downloads/x").Length);
     }
+
+    [TestMethod]
+    public void SeedingLimitIsTheTorrentsOwnElseTheGlobalOne()
+    {
+        var global = new SeedingLimits { Minutes = 4320 };
+        Assert.AreEqual(4320L, Torrent("/d/a").LimitMinutes(global));
+        Assert.AreEqual(60L, (Torrent("/d/a") with { SeedingLimitMinutes = 60 }).LimitMinutes(global));
+        Assert.IsNull((Torrent("/d/a") with { SeedingLimitMinutes = -1 }).LimitMinutes(global));
+        Assert.IsNull(Torrent("/d/a").LimitMinutes(new SeedingLimits()));
+    }
+
+    [TestMethod]
+    public void SeedTimeIsShortForTheTable()
+    {
+        Assert.AreEqual("35 min", Format.SeedTime(35 * 60));
+        Assert.AreEqual("41 h", Format.SeedTime(41 * 3600 + 59 * 60));
+        Assert.AreEqual("12 d", Format.SeedTime(12 * 86400));
+    }
 }

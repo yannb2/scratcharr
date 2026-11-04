@@ -302,12 +302,18 @@ else
     private string Limit(Torrent torrent)
     {
         var qbt = Scans.Last?.Evidence.Qbittorrent.State;
-        return torrent.SeedingLimitMinutes switch
+        var text = torrent.SeedingLimitMinutes switch
         {
             -1 => "(no limit)",
             -2 when qbt?.Limits.Minutes is { } m => $"of {Classifier.Hours(m)} (global limit)",
             -2 => "(no global time limit)",
             var m => $"of {Classifier.Hours(m)} (this torrent's limit)"
         };
+        if (qbt is not null && torrent.Finished && torrent.LimitMinutes(qbt.Limits) is { } limit)
+        {
+            var left = limit - torrent.SeedingSeconds / 60;
+            text += left > 0 ? $", {Classifier.Hours(left)} left" : ", limit reached";
+        }
+        return text;
     }
 }
