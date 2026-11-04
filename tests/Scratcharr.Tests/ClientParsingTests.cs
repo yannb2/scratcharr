@@ -118,6 +118,17 @@ public sealed class ClientParsingTests
     }
 
     [TestMethod]
+    public void Qbittorrent_api_key_is_sent_as_a_bearer_token()
+    {
+        using var withKey = QbittorrentClient.NewClient(new() { Url = "http://gluetun:8080", ApiKey = " qbt_abc " }, new System.Net.CookieContainer());
+        Assert.AreEqual("Bearer", withKey.DefaultRequestHeaders.Authorization!.Scheme);
+        Assert.AreEqual("qbt_abc", withKey.DefaultRequestHeaders.Authorization.Parameter);
+
+        using var withLogin = QbittorrentClient.NewClient(new() { Url = "http://gluetun:8080", Username = "u", Password = "p" }, new System.Net.CookieContainer());
+        Assert.IsNull(withLogin.DefaultRequestHeaders.Authorization);
+    }
+
+    [TestMethod]
     public void Lidarr_uses_api_v1()
     {
         Assert.AreEqual("api/v1", ArrClient.ApiBase(ArrApp.Lidarr));

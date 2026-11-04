@@ -74,7 +74,7 @@ public sealed class QbittorrentClient(LiveSettings settings, ILogger<Qbittorrent
 
     private HttpClient Client(QbittorrentOptions options)
     {
-        var key = $"{options.Url}|{options.Username}|{options.Password}";
+        var key = $"{options.Url}|{options.ApiKey}|{options.Username}|{options.Password}";
         if (_http == null || _forUrl != key)
         {
             _http?.Dispose();
@@ -85,12 +85,18 @@ public sealed class QbittorrentClient(LiveSettings settings, ILogger<Qbittorrent
         return _http;
     }
 
-    private static HttpClient NewClient(QbittorrentOptions options, CookieContainer cookies)
+    internal static HttpClient NewClient(QbittorrentOptions options, CookieContainer cookies)
     {
         var handler = new HttpClientHandler { CookieContainer = cookies, UseCookies = true };
         var http = new HttpClient(handler) { BaseAddress = new Uri(options.Url.TrimEnd('/') + "/"), Timeout = TimeSpan.FromSeconds(20) };
         // qBittorrent refuses requests whose Referer/Origin don't match its host when they are sent; send its own.
         http.DefaultRequestHeaders.Referrer = http.BaseAddress;
+        if (!string.IsNullOrWhiteSpace(options.ApiKey))
+        {
+            // qBittorrent 5.2+: a stateless API key replaces the cookie login.
+            http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", options.ApiKey.Trim());
+        }
+
         return http;
     }
 
@@ -110,10 +116,16 @@ public sealed class QbittorrentClient(LiveSettings settings, ILogger<Qbittorrent
 
     private static async Task LoginAsync(HttpClient http, QbittorrentOptions options, CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(options.ApiKey))
+        {
+            throw new InvalidOperationException(
+                "qBittorrent refused the API key: check it in Tools > Options > WebUI > API key (qBittorrent 5.2 or later).");
+        }
+
         if (string.IsNullOrEmpty(options.Username))
         {
             throw new InvalidOperationException(
-                "qBittorrent asks for a login: fill in the username and password, or allow this subnet without one (Web UI > Authentication).");
+                "qBittorrent asks for a login: fill in its API key (5.2 or later) or the username and password, or allow this subnet without one (Web UI > Authentication).");
         }
 
         using var form = new FormUrlEncodedContent(new Dictionary<string, string>

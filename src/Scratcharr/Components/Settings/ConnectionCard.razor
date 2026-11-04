@@ -24,6 +24,11 @@
     </div>
     @if (Service == Service.Qbittorrent)
     {
+        <div class="mb-3">
+            <label class="form-label" for="@($"{Id}-apikey")">API key</label>
+            <input id="@($"{Id}-apikey")" type="password" class="form-control" autocomplete="off" placeholder="qbt_..." @bind="_apiKey"/>
+            <small class="form-text text-muted">qBittorrent 5.2 or later: Tools &gt; Options &gt; WebUI &gt; API key. When set, the login below is not used.</small>
+        </div>
         <div class="row g-2 mb-3">
             <div class="col-sm-6">
                 <label class="form-label" for="@($"{Id}-user")">Username</label>
@@ -33,7 +38,7 @@
                 <label class="form-label" for="@($"{Id}-password")">Password</label>
                 <input id="@($"{Id}-password")" type="password" class="form-control" autocomplete="off" @bind="_secret"/>
             </div>
-            <small class="form-text text-muted">Leave both empty when qBittorrent lets this subnet in without a login (Web UI &gt; Authentication &gt; bypass for clients in whitelisted IP subnets).</small>
+            <small class="form-text text-muted">Or the same login as the arr apps use. Leave everything empty when qBittorrent lets this subnet in without a login (Web UI &gt; Authentication &gt; bypass for clients in whitelisted IP subnets).</small>
         </div>
     }
     else
@@ -79,6 +84,7 @@
     private string _url = "";
     private string _username = "";
     private string _secret = "";
+    private string _apiKey = "";
     private (bool Ok, string Message)? _test;
     private bool _busy;
 
@@ -122,7 +128,7 @@
         {
             case Service.Qbittorrent:
                 var q = Settings.Qbittorrent;
-                (_url, _username, _secret) = (q.Url, q.Username, q.Password);
+                (_url, _apiKey, _username, _secret) = (q.Url, q.ApiKey, q.Username, q.Password);
                 break;
             case Service.Sabnzbd:
                 (_url, _secret) = (Settings.Sabnzbd.Url, Settings.Sabnzbd.ApiKey);
@@ -173,7 +179,7 @@
         Scans.ScanNow();
     }
 
-    private QbittorrentOptions Qbittorrent() => new() { Url = _url.Trim(), Username = _username.Trim(), Password = _secret };
+    private QbittorrentOptions Qbittorrent() => new() { Url = _url.Trim(), ApiKey = _apiKey.Trim(), Username = _username.Trim(), Password = _secret };
 
     private SabnzbdOptions Sabnzbd() => new() { Url = _url.Trim(), ApiKey = _secret.Trim() };
 

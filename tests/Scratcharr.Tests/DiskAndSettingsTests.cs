@@ -156,7 +156,7 @@ public sealed class DiskAndSettingsTests
         Assert.AreEqual("/downloads/usenet/complete/radarr", sabRow.Folder);
         Assert.IsTrue(sabRow.Nobody);
         Assert.AreEqual("Stop seeding after 72 h, then remove the torrent (files stay).", report.SeedingLimits);
-        Assert.IsFalse(text.Contains("category \"prowlarr\""), "prowlarr is a manual category, not a forgotten one");
+        Assert.DoesNotContain("category \"prowlarr\"", text, "prowlarr is a manual category, not a forgotten one");
     }
 
     [TestMethod]
