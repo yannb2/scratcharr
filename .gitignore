@@ -1,0 +1,14 @@
+bin/
+obj/
+publish/
+.vs/
+.vscode/
+.idea/
+*.user
+TestResults/
+*.db
+*.db-wal
+*.db-shm
+dev/
+src/Scratcharr/dev/
+__pycache__/
