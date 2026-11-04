@@ -17,6 +17,7 @@ public static class Summary
         var forever = scan.Items.Where(i => i.StaysForever && !i.Verdict.NeedsReview()).ToList();
         var deleted = week.Where(a => a.Ok && a.Action is "Delete" or "Purge").ToList();
         var recycledThisWeek = week.Count(a => a.Ok && a.Action == "Recycle");
+        var byRules = week.Count(a => a.Ok && a.Action == "Recycle" && a.Detail.Contains("(Auto rule:", StringComparison.Ordinal));
 
         var text = new StringBuilder();
         if (review.Count == 0)
@@ -46,7 +47,7 @@ public static class Summary
             var parts = new List<string>();
             if (recycledThisWeek > 0)
             {
-                parts.Add($"{recycledThisWeek} recycled");
+                parts.Add(byRules > 0 ? $"{recycledThisWeek} recycled ({byRules} by the auto rules)" : $"{recycledThisWeek} recycled");
             }
 
             if (deleted.Count > 0)
@@ -72,11 +73,16 @@ public static class Summary
         return due > nowLocal ? due.AddDays(-7) : due;
     }
 
-    public static async Task SendAsync(NtfyOptions ntfy, string text, CancellationToken cancellationToken)
+    public static async Task SendAsync(NtfyOptions ntfy, string text, CancellationToken cancellationToken,
+        string title = "Scratcharr: weekly downloads summary", string tags = "broom", string? priority = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, ntfy.Url) { Content = new StringContent(text, Encoding.UTF8) };
-        request.Headers.Add("Title", "Scratcharr: weekly downloads summary");
-        request.Headers.Add("Tags", "broom");
+        request.Headers.Add("Title", title);
+        request.Headers.Add("Tags", tags);
+        if (priority != null)
+        {
+            request.Headers.Add("Priority", priority);
+        }
         if (!string.IsNullOrWhiteSpace(ntfy.Token))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ntfy.Token.Trim());

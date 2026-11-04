@@ -112,6 +112,36 @@ public sealed class DiskAndSettingsTests
     }
 
     [TestMethod]
+    public void The_folder_structure_lists_watched_category_and_protected_folders_and_creates_the_missing_ones()
+    {
+        var options = Options();
+        File("torrents/radarr/x.mkv");
+        var report = new SettingsReport
+        {
+            Categories =
+            [
+                new CategoryRow { Client = "qBittorrent", Category = "radarr", Folder = Path.Combine(_root, "torrents", "radarr") },
+                new CategoryRow { Client = "qBittorrent", Category = "manual", Folder = Path.Combine(_root, "torrents", "manual") + "/" },
+                new CategoryRow { Client = "qBittorrent", Category = "(none)", Folder = Path.Combine(_root, "torrents") },
+                new CategoryRow { Client = "SABnzbd", Category = "elsewhere", Folder = "/mnt/other" }
+            ]
+        };
+
+        var structure = FolderStructure.Expected(options, report, options.Protected);
+        var rel = structure.Select(f => $"{Path.GetRelativePath(_root, f.Path)}:{f.Exists}").ToList();
+        CollectionAssert.AreEqual(new[]
+        {
+            "discs:False", "import:False", "ripparr:False", "rips:False", "torrents:True", "torrents/manual:False", "torrents/radarr:True",
+            "usenet/complete:False", "usenet/incomplete:False"
+        }, rel, string.Join(" ", rel));
+
+        var (made, error) = FolderStructure.Create(options, structure);
+        Assert.IsNull(error);
+        Assert.HasCount(7, made);
+        Assert.IsTrue(FolderStructure.Expected(options, report, options.Protected).All(f => f.Exists));
+    }
+
+    [TestMethod]
     public void Archive_sets_count_their_first_part_only()
     {
         Assert.IsTrue(DiskScanner.IsArchiveStart("film.part1.rar"));

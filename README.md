@@ -23,7 +23,7 @@ the external disks and shares are only read, and nothing is deleted before 7 day
 | Jobs | Unpacks and copies one at a time with a progress bar, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
 | Logs | The last 2000 lines since the app started, newest first, with search and a level filter (shared arrkit code) |
 | Tools | 7-Zip's version, its pin and the newest release |
-| Settings | Integrations: connections (saved in the database, they win over the environment variables). Protected folders: add or remove the folders Scratcharr never touches (saved in the database, they win over `Protected__N`). Settings check: per download client category, its folder, which arr app uses it, who removes finished downloads, with warnings about gaps (the count shows on the tab and next to Settings in the menu). Status: the running values |
+| Settings | Integrations: connections (saved in the database, they win over the environment variables). Protected folders: add or remove the folders Scratcharr never touches (saved in the database, they win over `Protected__N`). Auto clean-up: opt-in rules and the low space alert. Settings check (with the folder structure card): per download client category, its folder, which arr app uses it, who removes finished downloads, with warnings about gaps (the count shows on the tab and next to Settings in the menu). Status: the running values |
 
 An **item** is one entry of a watched folder: a torrent's folder or file, a usenet job folder, something copied
 by hand. Category folders (`radarr`, `sonarr`, `manual`, `prowlarr`, and every category qBittorrent or SABnzbd reports)
@@ -142,11 +142,26 @@ can be cleaned and press Recycle.
 - **After `RecycleDays`**, items are deleted for good. Delete and Empty now do it sooner.
 - **Action log:** every change, and every refused one, goes into it.
 
+### Auto clean-up and the low space alert (Settings > Auto clean-up)
+
+- **Auto rules** recycle items on their own, once an hour, exactly as the Recycle button would. There is one rule
+  per verdict (imported leftover, seeding done, failed, half-finished, stray), each with its own number of days.
+  Every rule starts **off**. An item's age counts from its last change on disk, never from before Scratcharr first
+  saw it. Manual and protected items are never touched, a round takes at most 25 items, and every move goes through
+  the recycle folder with "Auto rule: ..." in the action log. The tab shows what is due now, with a Run now button.
+  Nothing runs while `AllowChanges` is off.
+- **Low space alert** (off by default): an ntfy message when less than the share you set (10% by default) of the
+  downloads pool is free, listing the 5 biggest items to review. It goes out once, then at most once a day while
+  the space stays low; it re-arms when there is enough space again. It never removes anything.
+
+The **Settings check** tab also has a **Folder structure** card: the folders the download clients, the watched
+folders and the protected folders expect under `/downloads`, which ones are missing, and a Create missing button.
+
 Once a week (Monday 9:00 by default) a summary goes to ntfy. It covers:
 - what needs a look, by verdict;
 - what is new this week;
 - what nothing will remove;
-- the recycle folder;
+- the recycle folder, and how many items the auto rules recycled;
 - free space.
 
 ## Roadmap

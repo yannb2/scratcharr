@@ -164,6 +164,17 @@ public sealed class CleanTests
     }
 
     [TestMethod]
+    public async Task An_auto_rule_recycle_says_so_in_the_log()
+    {
+        var options = Options();
+        var (cleaner, _, store) = Build(options);
+        var film = File("import/Film.mkv", 10);
+        var reason = AutoRules.Reason(new AutoRule { Verdict = Verdict.ImportedLeftover, Days = 3 });
+        Assert.IsTrue((await cleaner.CleanAsync([film], CancellationToken.None, new Dictionary<string, string> { [film] = reason })).Single().Ok);
+        StringAssert.EndsWith(store.Actions().Single().Detail, "(Auto rule: Imported, leftover after 3 days)");
+    }
+
+    [TestMethod]
     public async Task Nothing_changes_when_changes_are_off_or_the_item_is_claimed()
     {
         var film = File("import/Film.mkv");

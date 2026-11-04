@@ -1,0 +1,263 @@
+@implements IDisposable
+@inject LiveSettings Live
+@inject ScanService Scans
+@inject CleanupService Cleanup
+@inject Toasts Toasts
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+
+<p class="text-body-secondary">
+    Rules that recycle downloads on their own, once an hour, exactly as the Recycle button would: through the recycle
+    folder (kept @Options.Value.RecycleDays.ToString("0.#") days), never manual or protected items, and at most
+    @AutoRules.MaxPerRound items a round. An item's age counts from its last change on disk, and never from before
+    Scratcharr first saw it. All rules start off.
+</p>
+
+@if (!Options.Value.AllowChanges)
+{
+    <div class="alert alert-secondary small"><i class="bi bi-lock me-1"></i>@UnpackPlan.ChangesOff The rules can be set, but won't run.</div>
+}
+
+<div class="card mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-robot me-1"></i>Rules</div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+            <tr><th style="width: 4rem">On</th><th>Verdict</th><th style="width: 11rem">After</th><th class="text-end">Due now</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var rule in _rules)
+            {
+                var choice = AutoRules.Choices.First(c => c.Verdict == rule.Verdict);
+                var due = _preview.Where(d => d.Rule.Verdict == rule.Verdict).ToList();
+                <tr>
+                    <td>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" aria-label="Turn on @rule.Verdict.Label()"
+                                   checked="@rule.Enabled" @onchange="e => Toggle(rule, (bool)e.Value!)"/>
+                        </div>
+                    </td>
+                    <td>
+                        <VerdictBadge Verdict="rule.Verdict"/>
+                        <div class="small text-body-secondary">@choice.Help</div>
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <input type="number" min="1" max="365" class="form-control" aria-label="Days for @rule.Verdict.Label()"
+                                   value="@rule.Days" @onchange="e => SetDays(rule, e.Value?.ToString())"/>
+                            <span class="input-group-text">days</span>
+                        </div>
+                    </td>
+                    <td class="text-end small text-nowrap">
+                        @if (due.Count > 0)
+                        {
+                            <a href="items?verdict=@rule.Verdict">@due.Count, @Format.Size(due.Sum(d => d.Report.Item.Size))</a>
+                        }
+                        else
+                        {
+                            <span class="text-body-secondary">none</span>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="card-body border-top d-flex flex-wrap align-items-center gap-2 small">
+        <span class="text-body-secondary me-auto">
+            @if (_rules.Any(r => r.Enabled))
+            {
+                @($"{_preview.Count} item{(_preview.Count == 1 ? "" : "s")} due now ({Format.Size(_preview.Sum(d => d.Report.Item.Size))}).")
+                @(Cleanup.LastAutoRun is { } last ? $" Last round {Format.TimeAgo(last)}." : " The next round is within the hour.")
+            }
+            else
+            {
+                @("Every rule is off: nothing is recycled on its own.")
+            }
+        </span>
+        <button class="btn btn-sm btn-outline-primary" disabled="@(_busy || _preview.Count == 0 || !Options.Value.AllowChanges)" @onclick="RunNow">
+            <i class="bi bi-play me-1"></i>Run now
+        </button>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-device-hdd me-1"></i>Low space alert</div>
+    <div class="card-body small">
+        <p class="text-body-secondary">
+            An ntfy message when the free space in @Options.Value.DownloadsRoot drops below the share you set, listing the
+            @SpaceAlert.Biggest biggest items to review. It goes out once, then at most once a day while the space stays low.
+            Nothing is removed by it.
+        </p>
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="space-on"
+                       checked="@_space.Enabled" @onchange="e => ToggleSpace((bool)e.Value!)"/>
+                <label class="form-check-label" for="space-on">Alert when less than</label>
+            </div>
+            <div class="input-group input-group-sm" style="width: 8rem">
+                <input type="number" min="1" max="90" class="form-control" aria-label="Free space threshold in percent"
+                       value="@_space.FreePercent" @onchange="e => SetPercent(e.Value?.ToString())"/>
+                <span class="input-group-text">% free</span>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary ms-auto" disabled="@(_busy || !Options.Value.Ntfy.Configured || Scans.Last is not { TotalBytes: > 0 })"
+                    @onclick="TestSpace">
+                <i class="bi bi-send me-1"></i>Send a test
+            </button>
+        </div>
+        <div class="mt-2 text-body-secondary">
+            @if (!Options.Value.Ntfy.Configured)
+            {
+                <span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>Set NTFY_URL (Scratcharr__Ntfy__Url) to get the alert.</span>
+            }
+            else if (Scans.Last is { TotalBytes: > 0 } scan)
+            {
+                var low = SpaceAlert.Low(scan, _space);
+                <span class="@(low ? "text-danger-emphasis" : "")">
+                    Now @Format.Size(scan.FreeBytes) free of @Format.Size(scan.TotalBytes) (@SpaceAlert.Percent(scan))@(low ? ", below the threshold" : "").
+                </span>
+                @if (Cleanup.SpaceAlertSent is { } sent)
+                {
+                    <span> Last alert @Format.TimeAgo(sent).</span>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@if (_preview.Count > 0)
+{
+    <div class="card mb-3">
+        <div class="card-header fw-semibold">Due now</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 small">
+                <tbody>
+                @foreach (var (report, rule) in _preview)
+                {
+                    <tr>
+                        <td class="text-break"><a href="item/@report.Id">@report.Item.Name</a></td>
+                        <td><VerdictBadge Verdict="report.Verdict"/></td>
+                        <td class="text-end text-nowrap">@Format.Size(report.Item.Size)</td>
+                        <td class="text-end text-nowrap text-body-secondary">@((int)AutoRules.Age(report, DateTime.UtcNow).TotalDays) days</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AutoRule> _rules = [];
+    private SpaceAlertSettings _space = new();
+    private IReadOnlyList<(ItemReport Report, AutoRule Rule)> _preview = [];
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        Scans.Changed += OnChanged;
+        Load();
+    }
+
+    private void Load()
+    {
+        _rules = Live.AutoRules;
+        _space = Live.SpaceAlert;
+        _preview = Scans.Last is { Error: null } scan ? AutoRules.Due(scan, _rules, Options.Value, DateTime.UtcNow) : [];
+    }
+
+    private void OnChanged() => InvokeAsync(() =>
+    {
+        Load();
+        StateHasChanged();
+    });
+
+    private void Toggle(AutoRule rule, bool on)
+    {
+        rule.Enabled = on;
+        Save($"{rule.Verdict.Label()}: {(on ? $"recycled after {rule.Days} days" : "off")}.");
+    }
+
+    private void SetDays(AutoRule rule, string? text)
+    {
+        if (!int.TryParse(text, out var days) || days is < 1 or > 365)
+        {
+            Toasts.Error("Days go from 1 to 365.");
+            return;
+        }
+
+        rule.Days = days;
+        Save($"{rule.Verdict.Label()}: after {days} days{(rule.Enabled ? "" : " (the rule is off)")}.");
+    }
+
+    private void Save(string message)
+    {
+        Live.Save(LiveSettings.AutoRulesKey, _rules);
+        Load();
+        Toasts.Success(message);
+    }
+
+    private void ToggleSpace(bool on)
+    {
+        _space.Enabled = on;
+        SaveSpace(on ? $"Low space alert on: below {_space.FreePercent}% free." : "Low space alert off.");
+    }
+
+    private void SetPercent(string? text)
+    {
+        if (!int.TryParse(text, out var percent) || percent is < 1 or > 90)
+        {
+            Toasts.Error("The threshold goes from 1 to 90%.");
+            return;
+        }
+
+        _space.FreePercent = percent;
+        SaveSpace($"Low space alert: below {percent}% free{(_space.Enabled ? "" : " (the alert is off)")}.");
+    }
+
+    private void SaveSpace(string message)
+    {
+        Live.Save(LiveSettings.SpaceAlertKey, _space);
+        Load();
+        Toasts.Success(message);
+    }
+
+    private async Task TestSpace()
+    {
+        _busy = true;
+        var error = await Cleanup.SendSpaceAlertAsync(CancellationToken.None, test: true);
+        _busy = false;
+        if (error == null)
+        {
+            Toasts.Success("Test alert sent to ntfy.");
+        }
+        else
+        {
+            Toasts.Error(error);
+        }
+    }
+
+    private async Task RunNow()
+    {
+        _busy = true;
+        var outcomes = await Cleanup.AutoCleanAsync(CancellationToken.None);
+        _busy = false;
+        var done = outcomes.Count(o => o.Ok);
+        if (outcomes.Count == 0)
+        {
+            Toasts.Show("Nothing was due after a fresh scan.", "info");
+        }
+        else if (done == outcomes.Count)
+        {
+            Toasts.Success($"Recycled {done} item{(done == 1 ? "" : "s")}.");
+        }
+        else
+        {
+            Toasts.Error($"Recycled {done} of {outcomes.Count}: {outcomes.First(o => !o.Ok).Message}");
+        }
+
+        Load();
+    }
+
+    public void Dispose() => Scans.Changed -= OnChanged;
+}

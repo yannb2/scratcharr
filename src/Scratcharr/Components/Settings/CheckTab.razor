@@ -1,6 +1,8 @@
 @inject ScanService Scans
 @inject IOptions<ScratcharrOptions> Options
 @inject LiveSettings Live
+@inject Toasts Toasts
+@inject Store Store
 @using Microsoft.Extensions.Options
 
 <div class="d-flex align-items-start flex-wrap gap-2 mb-3">
@@ -97,6 +99,52 @@ else
         </div>
     </div>
 
+    var structure = FolderStructure.Expected(Options.Value, report, Live.Protected);
+    var missing = structure.Count(f => !f.Exists);
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center gap-2">
+            <span class="fw-semibold me-auto">Folder structure</span>
+            @if (missing == 0)
+            {
+                <span class="small text-success"><i class="bi bi-check-circle me-1"></i>All there</span>
+            }
+            else
+            {
+                <span class="small text-warning">@missing missing</span>
+                <button class="btn btn-sm btn-outline-primary" disabled="@(!Options.Value.AllowChanges)" @onclick="() => CreateMissing(structure)"
+                        title="@(Options.Value.AllowChanges ? "Create the missing folders" : UnpackPlan.ChangesOff)">
+                    <i class="bi bi-folder-plus me-1"></i>Create missing
+                </button>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                <tr><th>Folder</th><th>For</th><th class="text-end"></th></tr>
+                </thead>
+                <tbody>
+                @foreach (var folder in structure)
+                {
+                    <tr>
+                        <td class="sv-path small">@System.IO.Path.GetRelativePath(Options.Value.DownloadsRoot, folder.Path)</td>
+                        <td class="small text-body-secondary">@folder.Why</td>
+                        <td class="text-end">
+                            @if (folder.Exists)
+                            {
+                                <i class="bi bi-check-circle text-success" title="Exists"></i>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-warning">missing</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <div class="card mb-3">
         <div class="card-header fw-semibold">Watched folders</div>
         <div class="table-responsive">
@@ -136,6 +184,32 @@ else
 }
 
 @code {
+    private void CreateMissing(IReadOnlyList<ExpectedFolder> structure)
+    {
+        if (!Options.Value.AllowChanges)
+        {
+            return;
+        }
+
+        var (made, error) = FolderStructure.Create(Options.Value, structure);
+        foreach (var path in made)
+        {
+            Store.AddAction("Create folder", path, 0, "Settings check: folder structure");
+        }
+
+        if (error != null)
+        {
+            Store.AddAction("Create folder", "", 0, error, ok: false);
+            Toasts.Error($"Made {made.Count}, then: {error}");
+        }
+        else
+        {
+            Toasts.Success($"Made {made.Count} folder{(made.Count == 1 ? "" : "s")}. Scanning again.");
+        }
+
+        Scans.ScanNow();
+    }
+
     private static MarkupString YesNo(bool value) =>
         new(value ? "<i class=\"bi bi-check-circle text-success\"></i> on" : "<i class=\"bi bi-dash-circle text-body-secondary\"></i> off");
 
