@@ -33,10 +33,19 @@ public class ScratcharrOptions
     public double ScanMinutes { get; set; } = 15;
 
     /// <summary>
-    /// Off (the default): read-only, like Salvarr. On: the unpack, copy and clean-up buttons work
-    /// (later versions). The downloads volume must then be mounted read-write.
+    /// Off (the default): read-only, like Salvarr. On: Unpack works, and later the copy and clean-up
+    /// buttons. The downloads volume must then be mounted read-write.
     /// </summary>
     public bool AllowChanges { get; set; }
+
+    /// <summary>Where unpacked archives go, one folder each (relative to the downloads root). Ripparr finds discs there.</summary>
+    public string DiscsFolder { get; set; } = "discs";
+
+    /// <summary>
+    /// Ripparr's address as the browser reaches it (http://10.1.72.11:8186), for the "Open in Ripparr" links.
+    /// Empty: the links are not shown.
+    /// </summary>
+    public string RipparrUrl { get; set; } = "";
 
     public QbittorrentOptions Qbittorrent { get; set; } = new();
 
@@ -101,6 +110,7 @@ public class ScratcharrOptions
         }
 
         Protected = Protected.Select(Absolute).ToList();
+        DiscsFolder = Absolute(DiscsFolder);
         if (ScanMinutes < 1)
         {
             ScanMinutes = 1;

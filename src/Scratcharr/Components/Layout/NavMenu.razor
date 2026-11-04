@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject ScanService Scans
 @inject ToolStatusService Tools
+@inject JobQueue Queue
 
 <nav class="sv-sidebar @(_collapsed ? "collapsed" : "") @(MobileOpen ? "sv-mobile-open" : "")">
     <div class="sv-sidebar-header d-none d-md-flex">
@@ -22,6 +23,18 @@
                 <NavLink class="nav-link" href="items" @onclick="Close">
                     <i class="bi bi-folder2-open"></i>
                     <span>Downloads@(_review > 0 ? $" ({_review})" : "")</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="unpack" @onclick="Close">
+                    <i class="bi bi-file-earmark-zip"></i>
+                    <span>Unpack@(_archives > 0 ? $" ({_archives})" : "")</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="jobs" @onclick="Close">
+                    <i class="bi bi-list-task"></i>
+                    <span>Jobs@(_jobs > 0 ? $" ({_jobs})" : "")</span>
                 </NavLink>
             </li>
             <li class="nav-item">
@@ -81,12 +94,15 @@
     private bool _collapsed;
     private int _review;
     private int _warnings;
+    private int _archives;
+    private int _jobs;
 
     protected override void OnInitialized()
     {
         Count();
         Scans.Changed += OnChanged;
         Tools.Changed += OnChanged;
+        Queue.Changed += OnChanged;
     }
 
     private void Count()
@@ -94,6 +110,8 @@
         var last = Scans.Last;
         _review = last?.Items.Count(i => i.Verdict.NeedsReview()) ?? 0;
         _warnings = last?.Settings.Findings.Count(f => f.Severity == Severity.Warning) ?? 0;
+        _archives = last?.Items.Count(i => Jobs.UnpackPlan.Offers(i.Item)) ?? 0;
+        _jobs = Queue.OpenCount;
     }
 
     private void OnChanged()
@@ -117,5 +135,6 @@
     {
         Scans.Changed -= OnChanged;
         Tools.Changed -= OnChanged;
+        Queue.Changed -= OnChanged;
     }
 }

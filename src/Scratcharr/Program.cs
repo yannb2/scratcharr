@@ -2,6 +2,7 @@ using System.Globalization;
 using Scratcharr;
 using Scratcharr.Clients;
 using Scratcharr.Components;
+using Scratcharr.Jobs;
 using Scratcharr.Options;
 using Scratcharr.Scan;
 using Scratcharr.Tools;
@@ -24,6 +25,8 @@ builder.Services.AddSingleton<SabnzbdClient>();
 builder.Services.AddSingleton<ArrClient>();
 builder.Services.AddSingleton<ScanService>();
 builder.Services.AddHostedService(services => services.GetRequiredService<ScanService>());
+builder.Services.AddSingleton<JobQueue>();
+builder.Services.AddHostedService(services => services.GetRequiredService<JobQueue>());
 builder.Services.AddSingleton<ToolStatusService>();
 builder.Services.AddHostedService(services => services.GetRequiredService<ToolStatusService>());
 
@@ -42,7 +45,8 @@ app.MapStaticAssets();
 app.MapGet("/health", () => Results.Ok("ok"));
 
 // Counts for a dashboard (Homepage's custom API widget). Read-only, no key.
-app.MapGet("/api/stats", (ScanService scans, ToolStatusService tools) => Results.Ok(Stats.From(scans.Last, scans.Scanning, tools)));
+app.MapGet("/api/stats", (ScanService scans, ToolStatusService tools, JobQueue jobs) =>
+    Results.Ok(Stats.From(scans.Last, scans.Scanning, tools, jobs.OpenCount)));
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

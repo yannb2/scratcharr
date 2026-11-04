@@ -9,7 +9,7 @@ namespace Scratcharr.Options;
 /// The small SQLite database in /config: settings saved on the Settings page, and when each
 /// item was first seen (an item with no file times of its own still gets an age).
 /// </summary>
-public sealed class Store
+public sealed partial class Store
 {
     public static readonly JsonSerializerOptions Json = new()
     {
@@ -38,6 +38,10 @@ public sealed class Store
             PRAGMA journal_mode = WAL;
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS seen (path TEXT PRIMARY KEY, first TEXT NOT NULL, last TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, source TEXT NOT NULL, target TEXT NOT NULL,
+                item TEXT NOT NULL DEFAULT '', state TEXT NOT NULL, created TEXT NOT NULL, started TEXT, finished TEXT,
+                size INTEGER NOT NULL DEFAULT 0, message TEXT NOT NULL DEFAULT '', log TEXT NOT NULL DEFAULT '');
             """;
         command.ExecuteNonQuery();
     }
