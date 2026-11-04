@@ -9,17 +9,17 @@
 <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <h2 class="mb-0 me-auto">Jobs</h2>
     <a class="btn btn-sm btn-outline-secondary" href="unpack"><i class="bi bi-file-earmark-zip me-1"></i>Unpack</a>
-    <a class="btn btn-sm btn-outline-secondary" href="usb"><i class="bi bi-usb-drive me-1"></i>From USB</a>
+    <a class="btn btn-sm btn-outline-secondary" href="external"><i class="bi bi-hdd-network me-1"></i>External</a>
 </div>
 <p class="text-body-secondary small">
-    Unpacks and copies from USB run one at a time. They write into a <code>.unpacking</code> or <code>.copying</code> folder that
+    Unpacks and copies from external disks and shares run one at a time. They write into a <code>.unpacking</code> or <code>.copying</code> folder that
     gets its real name only when everything is there (and, for a copy, checked), so Ripparr and the arr apps never see half a disc.
-    A failed or cancelled job removes that folder; the archive or USB disk is never touched.
+    A failed or cancelled job removes that folder; the archive or the external source is never touched.
 </p>
 
 @if (_jobs.Count == 0)
 {
-    <p class="text-body-secondary">No jobs yet. Start one from <a href="unpack">Unpack</a> or <a href="usb">From USB</a>.</p>
+    <p class="text-body-secondary">No jobs yet. Start one from <a href="unpack">Unpack</a> or <a href="external">External</a>.</p>
 }
 else
 {
@@ -30,7 +30,7 @@ else
                 <li class="list-group-item">
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         <span class="badge text-bg-@job.State.Css()">@job.State</span>
-                        <i class="bi @(job.Kind == JobKind.Copy ? "bi-usb-drive" : "bi-file-earmark-zip")" title="@(job.Kind == JobKind.Copy ? "Copy from USB" : "Unpack")"></i>
+                        <i class="bi @(job.Kind == JobKind.Copy ? "bi-hdd-network" : "bi-file-earmark-zip")" title="@(job.Kind == JobKind.Copy ? "Copy from External" : "Unpack")"></i>
                         <span class="fw-semibold text-break me-auto">@job.Name</span>
                         @if (job.Size > 0)
                         {

@@ -2,13 +2,13 @@
 
 Manages the downloads folder (`/downloads` on the `scratch` pool): it finds what nothing claims any more,
 says who will remove each download and when, unpacks archived ISOs for Ripparr, copies files and folders in
-from USB disks, and cleans up through a 7-day recycle folder. Same look as Ripparr and the Muxarr fork, shared code from
+from USB disks and mounted shares (External), and cleans up through a 7-day recycle folder. Same look as Ripparr and the Muxarr fork, shared code from
 [arrkit](https://github.com/yannb2/arrkit).
 
 **Read-only by default.** It reads qBittorrent, SABnzbd, Radarr, Sonarr and Lidarr and walks the folders; it
-never changes a file, a torrent or a setting, and the downloads volume can be mounted `:ro`. Unpack, From USB
+never changes a file, a torrent or a setting, and the downloads volume can be mounted `:ro`. Unpack, External
 and Clean up need `Scratcharr__AllowChanges=true` and `/downloads` mounted read-write; even then the archives and
-the USB disks are only read, and nothing is deleted before 7 days in the recycle folder.
+the external disks and shares are only read, and nothing is deleted before 7 days in the recycle folder.
 
 ## What it shows
 
@@ -18,7 +18,7 @@ the USB disks are only read, and nothing is deleted before 7 days in the recycle
 | Downloads | Every item with its verdict, client state, arr app, seeding time (of its limit), size, age and when it leaves. Filters live in the URL. Tick items and Recycle them |
 | Item | The evidence: torrent, SABnzbd job, arr queue and history, the largest files |
 | Unpack | Every archive set (`.partNN.rar`, `.rar` + `.r00`, `.7z`, `.7z.001`, `.zip`) per item: parts, size, Look inside (7-Zip's listing: ISOs, BDMV, videos, unpacked size), a folder name, Unpack |
-| From USB | The disks in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Tick, pick Auto / import / discs, Copy |
+| External | The USB disks and mounted shares in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Anything that can't be read (Windows' System Volume Information...) is listed in red: click it for the error. Tick, pick Auto / import / discs, Copy |
 | Recycle | What Clean up moved away: days left, Restore, Delete, Empty now; the action log; the weekly ntfy summary (Send now) |
 | Jobs | Unpacks and copies one at a time with a progress bar, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
 | Logs | The last 2000 lines since the app started, newest first, with search and a level filter (shared arrkit code) |
@@ -63,10 +63,10 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | `Protected__N` | `ripparr`, `.recycle` | Never judged or touched |
 | `CategoryFolders__N` | radarr, sonarr, lidarr, books, manual, prowlarr | Opened even when no client has the category yet |
 | `ScanMinutes` | 15 | Minutes between scans (Scan now starts one at any time) |
-| `AllowChanges` | false | Off: read-only. On: Unpack and From USB work (mount `/downloads` read-write) |
+| `AllowChanges` | false | Off: read-only. On: Unpack and External copies work (mount `/downloads` read-write) |
 | `DiscsFolder` | `discs` | Where Unpack puts each archive's contents, one folder each; Ripparr finds discs there |
-| `ImportFolder` | `import` | Where From USB puts videos and other files, for Manual Import in Radarr or Sonarr |
-| `UsbRoot` | `/mnt/pc` | The USB disks, one folder each; mount it `:ro,rslave` |
+| `ImportFolder` | `import` | Where External copies put videos and other files, for Manual Import in Radarr or Sonarr |
+| `UsbRoot` | `/mnt/pc` | The External page's root: USB disks and mounted shares, one folder each; mount it `:ro,rslave` |
 | `UsbSkip__N` | `iso-mounts` | Folders in `/mnt/pc` that are not disks (Ripparr's ISO mounts): not listed |
 | `VerifyCopies` | true | Read each copy back and compare its xxHash with the original's before it gets its real name |
 | `RecycleFolder` | `.recycle` | Where Recycle moves items, `<date>/<path inside /downloads>` |
@@ -102,17 +102,18 @@ folder (and nothing else). Before queuing, and again right before it runs, Scrat
 Password-protected archives fail at once with a clear message. SABnzbd's incomplete folder is not offered,
 because SABnzbd unpacks its own jobs.
 
-### From USB
+### External (USB disks and shares)
 
 The page lists the folders in `/mnt/pc` (one per USB disk or PC share, except `iso-mounts`; an empty mount point
-shows as *not mounted*) and lets you browse them. **Auto** sends ISO files and folders holding a BDMV folder or an ISO to `/downloads/discs/` (Ripparr),
+shows as *not mounted*) and lets you browse them. A file or folder the container can't read, such as Windows'
+`System Volume Information`, is listed in red and can't be ticked; click its name to see the error. **Auto** sends ISO files and folders holding a BDMV folder or an ISO to `/downloads/discs/` (Ripparr),
 and everything else to `/downloads/import/` (Manual Import in Radarr or Sonarr); the menu can force one or the other.
 Each ticked entry becomes one copy job, keeping its name.
 
 The copy goes to `<name>.copying` and is renamed when complete. Each file is hashed (xxHash3) as it is read from the
-USB disk; with `VerifyCopies` on, the copy is then read back and compared, so a bad cable or a failing disk ends in a
+source; with `VerifyCopies` on, the copy is then read back and compared, so a bad cable or a failing disk ends in a
 failed job, not a broken file. Modified times are kept; symbolic links are skipped. Copy only: nothing is ever
-deleted from the USB disk, which stays mounted `:ro`. Before queuing, and again right before it runs:
+deleted from the source, which stays mounted `:ro`. Before queuing, and again right before it runs:
 
 - Changes are on.
 - The source is under `/mnt/pc` and still there.
