@@ -1,0 +1,378 @@
+@page "/usb"
+@implements IDisposable
+@inject ScanService Scans
+@inject JobQueue Queue
+@inject Toasts Toasts
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+
+<PageTitle>From USB · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <h2 class="mb-0 me-auto">From USB</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="jobs"><i class="bi bi-list-task me-1"></i>Jobs</a>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+</div>
+<p class="text-body-secondary small">
+    Copies files and folders from the USB disks and PC shares in <code>@O.UsbRoot</code> into the downloads: ISOs and BDMV folders go to
+    <code>@Rel(O.DiscsFolder)/</code> for Ripparr, videos and the rest to <code>@Rel(O.ImportFolder)/</code> for Manual Import in
+    Radarr or Sonarr. The USB disk is only read. @(O.VerifyCopies ? "Each copy is read back and compared (xxHash) before it gets its real name." : "")
+</p>
+
+@if (!O.AllowChanges)
+{
+    <div class="alert alert-secondary small"><i class="bi bi-lock me-1"></i>@UnpackPlan.ChangesOff You can still browse the disks.</div>
+}
+
+@if (!Directory.Exists(O.UsbRoot))
+{
+    <div class="alert alert-warning small">
+        <i class="bi bi-exclamation-triangle me-1"></i>There is no <code>@O.UsbRoot</code> in the container. Add it to the volumes,
+        read-only and with <code>rslave</code> so disks mounted later show up: <code>- @(O.UsbRoot):@(O.UsbRoot):ro,rslave</code>
+    </div>
+}
+else if (Path == null)
+{
+    @if (_disks.Count == 0)
+    {
+        <p class="text-body-secondary">No disks in <code>@O.UsbRoot</code>.</p>
+    }
+    <div class="row g-3">
+        @foreach (var disk in _disks)
+        {
+            <div class="col-12 col-sm-6 col-lg-4">
+                <a class="card h-100 text-decoration-none" href="@Browse(disk.Path)">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-usb-drive fs-4 @(disk.Mounted ? "text-primary" : "text-body-secondary")"></i>
+                            <span class="fw-semibold fs-5">@disk.Name</span>
+                            @if (!disk.Mounted)
+                            {
+                                <span class="badge text-bg-secondary ms-auto">not mounted</span>
+                            }
+                        </div>
+                        @if (disk.Mounted && disk.Total > 0)
+                        {
+                            var used = disk.Total - disk.Free;
+                            <div class="progress mt-2" style="height: .5rem" role="progressbar" aria-label="Used space">
+                                <div class="progress-bar" style="width: @(used * 100 / disk.Total)%"></div>
+                            </div>
+                            <div class="small text-body-secondary mt-1">@Format.Size(used) used of @Format.Size(disk.Total)</div>
+                        }
+                    </div>
+                </a>
+            </div>
+        }
+    </div>
+}
+else if (_error != null)
+{
+    <div class="alert alert-danger small">@_error</div>
+    <a href="usb"><i class="bi bi-arrow-left me-1"></i>All disks</a>
+}
+else
+{
+    <nav aria-label="Folder" class="mb-2">
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item"><a href="usb"><i class="bi bi-usb-drive me-1"></i>USB</a></li>
+            @foreach (var (name, path) in Crumbs())
+            {
+                if (path == Path)
+                {
+                    <li class="breadcrumb-item active text-break" aria-current="page">@name</li>
+                }
+                else
+                {
+                    <li class="breadcrumb-item text-break"><a href="@Browse(path)">@name</a></li>
+                }
+            }
+        </ol>
+    </nav>
+
+    <div class="card mb-3">
+        @if (_loading)
+        {
+            <div class="card-body text-body-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Reading the folder…</div>
+        }
+        else if (_rows.Count == 0)
+        {
+            <div class="card-body text-body-secondary">Empty folder.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                    <tr>
+                        <th style="width: 2rem">
+                            <input class="form-check-input" type="checkbox" aria-label="Select all" checked="@(_rows.Any(r => r.Free) && _rows.Where(r => r.Free).All(r => r.Selected))"
+                                   @onchange="e => SelectAll((bool)e.Value!)"/>
+                        </th>
+                        <th>Name</th>
+                        <th>Holds</th>
+                        <th class="text-end">Size</th>
+                        <th>Goes to</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        var entry = row.Entry;
+                        <tr>
+                            <td><input class="form-check-input" type="checkbox" aria-label="Select @entry.Name" disabled="@(!row.Free)" @bind="row.Selected"/></td>
+                            <td class="text-break">
+                                <i class="bi @Icon(entry) me-1"></i>
+                                @if (entry.IsDirectory)
+                                {
+                                    <a href="@Browse(entry.Path)">@entry.Name</a>
+                                }
+                                else
+                                {
+                                    @entry.Name
+                                }
+                            </td>
+                            <td class="small text-nowrap">
+                                <span class="badge text-bg-@KindCss(entry.Kind)">@KindText(entry.Kind)</span>
+                                @if (entry.IsDirectory)
+                                {
+                                    <span class="text-body-secondary ms-1">@(entry.Files == 1 ? "1 file" : $"{entry.Files} files")</span>
+                                }
+                            </td>
+                            <td class="text-end small text-nowrap">@Format.Size(entry.Size)</td>
+                            <td class="small">
+                                @if (row.Existing != null)
+                                {
+                                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>Already in @Rel(System.IO.Path.GetDirectoryName(row.Existing)!)/</span>
+                                }
+                                else if (row.Queued)
+                                {
+                                    <span><i class="bi bi-hourglass-split me-1"></i><a href="jobs">Queued</a></span>
+                                }
+                                else
+                                {
+                                    <span class="sv-path text-body-secondary">@Rel(CopyPlan.Folder(O, entry.Kind, _destination))/</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="small me-auto">
+            @if (Selected.Count == 0)
+            {
+                <span class="text-body-secondary">Tick what to copy.</span>
+            }
+            else
+            {
+                <strong>@Selected.Count selected</strong><span>, @Format.Size(Selected.Sum(r => r.Entry.Size))</span>
+            }
+            @if (Scans.Last is { FreeBytes: > 0 } scan)
+            {
+                <span class="text-body-secondary"> · @Format.Size(scan.FreeBytes) free in @O.DownloadsRoot</span>
+            }
+        </span>
+        <div class="input-group input-group-sm w-auto">
+            <label class="input-group-text" for="destination">Into</label>
+            <select id="destination" class="form-select" @bind="_destination">
+                <option value="@CopyDestination.Auto">Auto: discs or import</option>
+                <option value="@CopyDestination.Import">@Rel(O.ImportFolder)/</option>
+                <option value="@CopyDestination.Discs">@Rel(O.DiscsFolder)/</option>
+            </select>
+        </div>
+        <button class="btn btn-sm btn-primary" disabled="@(Selected.Count == 0 || !O.AllowChanges)" @onclick="Copy"
+                title="@(O.AllowChanges ? "Copy the ticked files and folders" : UnpackPlan.ChangesOff)">
+            <i class="bi bi-copy me-1"></i>Copy
+        </button>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirm"/>
+
+@code {
+    [SupplyParameterFromQuery] public string? Path { get; set; }
+
+    private sealed class Row
+    {
+        public required UsbEntry Entry { get; init; }
+        public bool Selected { get; set; }
+        public string? Existing { get; set; }
+        public bool Queued { get; set; }
+        public bool Free => Existing == null && !Queued;
+    }
+
+    private ScratcharrOptions O => Options.Value;
+    private IReadOnlyList<UsbDisk> _disks = [];
+    private List<Row> _rows = [];
+    private CopyDestination _destination;
+    private bool _loading;
+    private string? _error;
+    private ConfirmDialog? _confirm;
+    private CancellationTokenSource? _reading;
+
+    private List<Row> Selected => _rows.Where(r => r.Selected && r.Free).ToList();
+
+    protected override void OnInitialized() => Queue.Changed += OnJobs;
+
+    protected override Task OnParametersSetAsync() => Load();
+
+    private async Task Load()
+    {
+        _error = null;
+        if (Path == null)
+        {
+            _rows = [];
+            _disks = await Task.Run(() => CopyPlan.Disks(O));
+            return;
+        }
+
+        var path = Paths.Clean(Path);
+        if (!Paths.IsUnder(path, O.UsbRoot) || !Directory.Exists(path))
+        {
+            _error = $"{Path} is not a folder under {O.UsbRoot}.";
+            return;
+        }
+
+        _reading?.Cancel();
+        _reading = new CancellationTokenSource();
+        var token = _reading.Token;
+        _loading = true;
+        _rows = [];
+        StateHasChanged();
+        try
+        {
+            var entries = await Task.Run(() => CopyPlan.List(path, token), token);
+            _rows = entries.Select(e => new Row { Entry = e }).ToList();
+            Mark();
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            _error = $"Could not read {path}: {e.Message}";
+        }
+
+        _loading = false;
+    }
+
+    /// <summary>Which entries were copied already (the name is in discs/ or import/) or wait in the queue.</summary>
+    private void Mark()
+    {
+        var jobs = Queue.Jobs();
+        foreach (var row in _rows)
+        {
+            var name = row.Entry.Name;
+            row.Existing = new[] { O.ImportFolder, O.DiscsFolder }
+                .Select(folder => System.IO.Path.Combine(folder, name))
+                .FirstOrDefault(target => File.Exists(target) || Directory.Exists(target));
+            row.Queued = jobs.Any(j => j.Open && j.Kind == JobKind.Copy && j.Source == row.Entry.Path);
+            if (!row.Free)
+            {
+                row.Selected = false;
+            }
+        }
+    }
+
+    private void SelectAll(bool on)
+    {
+        foreach (var row in _rows.Where(r => r.Free))
+        {
+            row.Selected = on;
+        }
+    }
+
+    private async Task Copy()
+    {
+        var picked = Selected;
+        var size = picked.Sum(r => r.Entry.Size);
+        var where = picked.GroupBy(r => Rel(CopyPlan.Folder(O, r.Entry.Kind, _destination)))
+            .Select(g => $"{g.Count()} into {g.Key}/");
+        var ok = await _confirm!.Ask("Copy from USB?",
+            $"{(picked.Count == 1 ? picked[0].Entry.Name : $"{picked.Count} items")}, {Format.Size(size)}: {string.Join(", ", where)}. "
+            + "The USB disk is not changed.",
+            "Copy");
+        if (!ok)
+        {
+            return;
+        }
+
+        var queued = 0;
+        foreach (var row in picked)
+        {
+            var problem = Queue.QueueCopy(row.Entry.Path, _destination);
+            if (problem != null)
+            {
+                Toasts.Error($"{row.Entry.Name}: {problem}");
+            }
+            else
+            {
+                queued++;
+            }
+        }
+
+        if (queued > 0)
+        {
+            Toasts.Success($"Queued {queued} cop{(queued == 1 ? "y" : "ies")}. Follow them on the Jobs page.");
+        }
+
+        Mark();
+    }
+
+    private string Rel(string folder) => Paths.IsUnder(folder, O.DownloadsRoot)
+        ? System.IO.Path.GetRelativePath(O.DownloadsRoot, folder)
+        : folder;
+
+    private static string Browse(string path) => "usb?path=" + Uri.EscapeDataString(path);
+
+    /// <summary>The disk and folders from the USB root down to the current folder.</summary>
+    private IEnumerable<(string Name, string Path)> Crumbs()
+    {
+        var relative = System.IO.Path.GetRelativePath(O.UsbRoot, Paths.Clean(Path!));
+        var path = O.UsbRoot;
+        foreach (var part in relative.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            path = System.IO.Path.Combine(path, part);
+            yield return (part, path);
+        }
+    }
+
+    private static string Icon(UsbEntry entry) => entry.Kind switch
+    {
+        UsbKind.Disc => "bi-disc text-primary",
+        UsbKind.Video when !entry.IsDirectory => "bi-film",
+        _ => entry.IsDirectory ? "bi-folder" : "bi-file-earmark"
+    };
+
+    private static string KindText(UsbKind kind) => kind switch
+    {
+        UsbKind.Disc => "Disc",
+        UsbKind.Video => "Video",
+        UsbKind.Folder => "Other",
+        _ => "File"
+    };
+
+    private static string KindCss(UsbKind kind) => kind switch
+    {
+        UsbKind.Disc => "primary",
+        UsbKind.Video => "info",
+        _ => "secondary"
+    };
+
+    private void OnJobs() => InvokeAsync(() =>
+    {
+        Mark();
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        Queue.Changed -= OnJobs;
+        _reading?.Cancel();
+    }
+}

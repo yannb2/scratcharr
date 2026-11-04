@@ -129,9 +129,10 @@ public static class DiskScanner
     internal static DiskItem Measure(FileSystemInfo entry, string folder, FolderKind kind, string category, ScratcharrOptions options)
     {
         var path = Paths.Clean(entry.FullName);
-        // A folder 7-Zip is still filling (Unpack) is Scratcharr's own work in progress.
+        // A folder 7-Zip is still filling (Unpack), or a copy from USB, is Scratcharr's own work in progress.
         var isProtected = options.Protected.Any(p => Paths.IsUnder(path, p) || path == p)
-                          || entry.Name.EndsWith(Jobs.UnpackPlan.PartialSuffix, StringComparison.Ordinal);
+                          || entry.Name.EndsWith(Jobs.UnpackPlan.PartialSuffix, StringComparison.Ordinal)
+                          || entry.Name.EndsWith(Usb.CopyPlan.PartialSuffix, StringComparison.Ordinal);
         if (entry is FileInfo file)
         {
             return new DiskItem

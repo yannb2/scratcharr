@@ -4,7 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <Version>0.2.0</Version>
+        <Version>0.3.0</Version>
         <InvariantGlobalization>false</InvariantGlobalization>
         <!-- The SDK only adds blazor.web.js when it sees .razor files at restore time.
              The Dockerfile restores from the .csproj alone, so say it here. -->
@@ -23,6 +23,7 @@
     <ItemGroup>
         <!-- Settings and first-seen times, in /config. -->
         <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+        <PackageReference Include="System.IO.Hashing" Version="10.0.14" />
     </ItemGroup>
 
 </Project>

@@ -86,6 +86,12 @@ public static class UnpackPlan
     /// </summary>
     public static IReadOnlyList<string> Discs(string folder, int depth = 4)
     {
+        // A copied ISO file is itself the disc.
+        if (File.Exists(folder))
+        {
+            return folder.EndsWith(".iso", StringComparison.OrdinalIgnoreCase) ? [folder] : [];
+        }
+
         var found = new List<string>();
         Walk(folder, depth, found);
         return found;
