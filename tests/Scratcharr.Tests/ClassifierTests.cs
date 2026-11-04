@@ -154,6 +154,23 @@ public sealed class ClassifierTests
     }
 
     [TestMethod]
+    public void Prowlarr_grabs_are_manual_in_both_trees()
+    {
+        var torrent = Classify(Item("/downloads/torrents/prowlarr/Some.Album", category: "prowlarr"), Evidence());
+        Assert.AreEqual(Verdict.Manual, torrent.Verdict);
+        StringAssert.Contains(torrent.Reasons[^1], "Prowlarr search");
+
+        var usenet = Classify(Item("/downloads/usenet/complete/prowlarr/Some.Show", FolderKind.Usenet, "prowlarr"), Evidence(sab: new SabnzbdState()));
+        Assert.AreEqual(Verdict.Manual, usenet.Verdict);
+
+        var seeding = Classify(Item("/downloads/torrents/prowlarr/Seeding", category: "prowlarr"),
+            Evidence([Torrent("/downloads/torrents/prowlarr/Seeding", category: "prowlarr")]));
+        Assert.AreEqual(Verdict.Active, seeding.Verdict);
+        Assert.IsTrue(seeding.IsManual);
+        Assert.IsFalse(seeding.StaysForever);
+    }
+
+    [TestMethod]
     public void A_manual_torrent_that_seeds_is_active_but_counted_as_manual()
     {
         var path = "/downloads/torrents/manual/Concert";

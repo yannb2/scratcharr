@@ -84,6 +84,7 @@ public static class SettingsCheck
                 {
                     ShareLimitAction.RemoveWithFiles => ("qBittorrent, with the files", false),
                     ShareLimitAction.Remove => ("qBittorrent, files left behind", true),
+                    _ when client == null && ScratcharrOptions.IsManualCategory(name) => (ManualRemovedBy, false),
                     _ when client is { } c => c.Client.RemoveCompleted
                         ? ($"{c.App}, after the seeding limit", false)
                         : ($"Nobody ({c.App} has Remove Completed off)", true),
@@ -106,7 +107,7 @@ public static class SettingsCheck
                         $"{count} torrent(s) have no category, so they save to {folder} and nothing removes them. " +
                         "Give manual torrents the \"manual\" category (and set it as the default in Torrent Control)."));
                 }
-                else if (client == null && !name.Equals("manual", StringComparison.OrdinalIgnoreCase) && nobody)
+                else if (client == null && !ScratcharrOptions.IsManualCategory(name) && nobody)
                 {
                     findings.Add(new Finding(Severity.Info, $"No arr app uses the qBittorrent category \"{name}\": its torrents stay until removed by hand."));
                 }
@@ -140,8 +141,8 @@ public static class SettingsCheck
                     UsedBy = client is { } used ? $"{used.App} ({used.Client.Name})" : "",
                     RemovedBy = client is { } c
                         ? c.Client.RemoveCompleted ? $"{c.App}, after the import" : $"Nobody ({c.App} has Remove Completed off)"
-                        : "Nobody",
-                    Nobody = client is not { Client.RemoveCompleted: true },
+                        : ScratcharrOptions.IsManualCategory(name) ? ManualRemovedBy : "Nobody",
+                    Nobody = client is not { Client.RemoveCompleted: true } && !(client == null && ScratcharrOptions.IsManualCategory(name)),
                     Items = sab.History.Count(j => j.Category == name)
                 });
 
@@ -183,6 +184,8 @@ public static class SettingsCheck
             SabRetention = retention
         };
     }
+
+    private const string ManualRemovedBy = "You: manual downloads stay until you decide";
 
     public static string ActionWords(ShareLimitAction action) => action switch
     {

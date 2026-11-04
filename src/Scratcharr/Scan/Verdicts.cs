@@ -116,8 +116,8 @@ public sealed record ItemReport
     public Removal? Removal { get; init; }
     public DateTime FirstSeen { get; init; }
 
-    /// <summary>A manual download (the manual category, or a folder filled by hand): kept until you decide.</summary>
-    public bool IsManual => Verdict == Verdict.Manual || Item.Category.Equals("manual", StringComparison.OrdinalIgnoreCase);
+    /// <summary>A manual download (the manual or prowlarr category, or a folder filled by hand): kept until you decide.</summary>
+    public bool IsManual => Verdict == Verdict.Manual || ScratcharrOptions.IsManualCategory(Item.Category);
 
     /// <summary>Nothing will ever remove it, and it is not a manual item you keep on purpose.</summary>
     public bool StaysForever => Removal?.Nobody == true && !IsManual;
@@ -322,11 +322,13 @@ public static class Classifier
             _ => null
         };
 
-        if (item.Category.Equals("manual", StringComparison.OrdinalIgnoreCase) || item.Kind == FolderKind.Manual)
+        if (ScratcharrOptions.IsManualCategory(item.Category) || item.Kind == FolderKind.Manual)
         {
             reasons.Add(item.Kind == FolderKind.Manual
                 ? $"In {item.Folder}, a folder filled by hand."
-                : "In the manual category folder.");
+                : item.Category.Equals("prowlarr", StringComparison.OrdinalIgnoreCase)
+                    ? "In the prowlarr category folder: grabbed by hand from a Prowlarr search."
+                    : "In the manual category folder.");
             if (job != null)
             {
                 reasons.Add("Finished in SABnzbd; no arr app imports it.");

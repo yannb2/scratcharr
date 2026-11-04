@@ -20,7 +20,7 @@ never changes a file, a torrent or a setting. The downloads volume can be mounte
 | Settings | Connections (saved in the database, they win over the environment variables) and the running values |
 
 An **item** is one entry of a watched folder: a torrent's folder or file, a usenet job folder, something copied
-by hand. Category folders (`radarr`, `sonarr`, `manual`, and every category qBittorrent or SABnzbd reports)
+by hand. Category folders (`radarr`, `sonarr`, `manual`, `prowlarr`, and every category qBittorrent or SABnzbd reports)
 are opened, so each torrent is its own item. Loose entries at the top of `/downloads` are listed too.
 
 ### Verdicts
@@ -32,7 +32,7 @@ are opened, so each torrent is its own item. Loose entries at the top of `/downl
 | Seeding done | Stopped at its seeding limit, still listed in qBittorrent |
 | Imported, leftover | An arr app imported it (a copy) and no client owns it any more |
 | Failed | The download or the import failed |
-| Manual | In the `manual` category or a folder filled by hand (`import`, `discs`) |
+| Manual | In the `manual` or `prowlarr` category (added by hand, or grabbed from a Prowlarr search) or a folder filled by hand (`import`, `discs`) |
 | Half-finished | `.!qB` files that no torrent owns |
 | Stray | Nothing claims it at all |
 | Can't tell | The client that would know (qBittorrent for torrents, SABnzbd for usenet) could not be read |
@@ -55,7 +55,7 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | `DownloadsRoot` | `/downloads` | Only items under it are listed |
 | `Folders__N__Name/Path/Kind` | torrents, usenet/complete, usenet/incomplete, import, discs | Watched folders; `Kind` = Torrents, Usenet, UsenetIncomplete or Manual; paths relative to the root |
 | `Protected__N` | `ripparr`, `.recycle` | Never judged or touched |
-| `CategoryFolders__N` | radarr, sonarr, lidarr, books, manual | Opened even when no client has the category yet |
+| `CategoryFolders__N` | radarr, sonarr, lidarr, books, manual, prowlarr | Opened even when no client has the category yet |
 | `ScanMinutes` | 15 | Minutes between scans (Scan now starts one at any time) |
 | `AllowChanges` | false | Off: read-only. For the unpack, copy and clean-up buttons of later versions |
 | `Qbittorrent__Url/Username/Password` | | `http://gluetun:8080`; leave the login empty when the subnet is whitelisted |

@@ -121,7 +121,7 @@ public sealed class DiskAndSettingsTests
             Qbittorrent = Reading<QbittorrentState>.From(new QbittorrentState
             {
                 DefaultSavePath = "/downloads/torrents",
-                Categories = new Dictionary<string, string> { ["radarr"] = "" },
+                Categories = new Dictionary<string, string> { ["radarr"] = "", ["prowlarr"] = "" },
                 Torrents = [new Torrent { Hash = "A", Name = "linux.iso", Category = "" }],
                 Limits = new SeedingLimits { Minutes = 4320, Action = ShareLimitAction.Remove }
             }),
@@ -156,6 +156,7 @@ public sealed class DiskAndSettingsTests
         Assert.AreEqual("/downloads/usenet/complete/radarr", sabRow.Folder);
         Assert.IsTrue(sabRow.Nobody);
         Assert.AreEqual("Stop seeding after 72 h, then remove the torrent (files stay).", report.SeedingLimits);
+        Assert.IsFalse(text.Contains("category \"prowlarr\""), "prowlarr is a manual category, not a forgotten one");
     }
 
     [TestMethod]
@@ -169,7 +170,7 @@ public sealed class DiskAndSettingsTests
             })
         };
         var names = ScanService.CategoryNames(new ScratcharrOptions().WithDefaults(), evidence);
-        CollectionAssert.IsSubsetOf(new[] { "radarr", "manual", "anime", "anime-folder" }, names.ToList());
+        CollectionAssert.IsSubsetOf(new[] { "radarr", "manual", "prowlarr", "anime", "anime-folder" }, names.ToList());
     }
 
     [TestMethod]

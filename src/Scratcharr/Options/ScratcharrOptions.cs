@@ -63,7 +63,16 @@ public class ScratcharrOptions
 
     public static readonly string[] DefaultProtected = ["ripparr", ".recycle"];
 
-    public static readonly string[] DefaultCategoryFolders = ["radarr", "sonarr", "lidarr", "books", "manual"];
+    public static readonly string[] DefaultCategoryFolders = ["radarr", "sonarr", "lidarr", "books", "manual", "prowlarr"];
+
+    /// <summary>
+    /// Categories for downloads started by hand: "manual" (added in qBittorrent or SABnzbd) and "prowlarr"
+    /// (grabbed from a Prowlarr search). No arr app imports them; they stay until you decide.
+    /// </summary>
+    public static readonly string[] ManualCategories = ["manual", "prowlarr"];
+
+    public static bool IsManualCategory(string category) =>
+        ManualCategories.Contains(category, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Fills in the defaults for lists the configuration left empty, and makes folder paths absolute.</summary>
     public ScratcharrOptions WithDefaults()
