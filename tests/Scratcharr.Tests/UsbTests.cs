@@ -106,6 +106,43 @@ public sealed class UsbTests
     }
 
     [TestMethod]
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    public void An_unreadable_folder_is_listed_with_the_reason_and_the_rest_still_shows()
+    {
+        File("pc/d/Film.mkv");
+        File("pc/d/Movies/Movie.mkv", 20);
+        File("pc/d/Movies/Locked/secret.bin");
+        var system = Path.Combine(_usb, "d", "System Volume Information");
+        Directory.CreateDirectory(system);
+        var locked = Path.Combine(_usb, "d", "Movies", "Locked");
+        System.IO.File.SetUnixFileMode(system, UnixFileMode.None);
+        System.IO.File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            if (Environment.UserName == "root")
+            {
+                Assert.Inconclusive("root reads every folder, so nothing is unreadable here.");
+            }
+
+            var entries = CopyPlan.List(Path.Combine(_usb, "d")).ToDictionary(e => e.Name);
+            Assert.HasCount(3, entries);
+            Assert.IsNull(entries["Film.mkv"].Unreadable);
+            Assert.StartsWith("Can't be read", entries["System Volume Information"].Unreadable!);
+            Assert.StartsWith("Part of it can't be read", entries["Movies"].Unreadable!);
+            Assert.AreEqual(20, entries["Movies"].Size);
+            Assert.AreEqual(1, entries["Movies"].Files);
+            Assert.IsTrue(entries["Movies"].Partial);
+            Assert.IsFalse(entries["System Volume Information"].Partial);
+        }
+        finally
+        {
+            const UnixFileMode all = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+            System.IO.File.SetUnixFileMode(system, all);
+            System.IO.File.SetUnixFileMode(locked, all);
+        }
+    }
+
+    [TestMethod]
     public void Disks_are_the_folders_under_the_usb_root()
     {
         File("pc/usb01/Film.mkv");
@@ -127,7 +164,7 @@ public sealed class UsbTests
 
         StringAssert.Contains(CopyPlan.Problem(Options(allowChanges: false), mkv, target, 10, 0, []), "Changes are off");
         StringAssert.Contains(CopyPlan.Problem(options, File("downloads/torrents/x.mkv"), target, 10, 0, []), "Only files and folders under");
-        StringAssert.Contains(CopyPlan.Problem(options, Path.Combine(_usb, "usb01", "gone.mkv"), target, 10, 0, []), "not on the USB disk");
+        StringAssert.Contains(CopyPlan.Problem(options, Path.Combine(_usb, "usb01", "gone.mkv"), target, 10, 0, []), "not on the external disk");
         StringAssert.Contains(CopyPlan.Problem(options, mkv, Path.Combine(_root, "elsewhere", "Film.mkv"), 10, 0, []), "has to go into");
         StringAssert.Contains(CopyPlan.Problem(options, mkv, Path.Combine(options.ImportFolder, ".hidden"), 10, 0, []), "has to go into");
         StringAssert.Contains(CopyPlan.Problem(options, mkv, target, 10, 1L << 30, []), "Not enough space");
@@ -204,7 +241,7 @@ public sealed class UsbTests
 
         var job = queue.Jobs().Single();
         Assert.AreEqual(JobState.Failed, job.State);
-        StringAssert.Contains(job.Message, "not on the USB disk");
+        StringAssert.Contains(job.Message, "not on the external disk");
         Assert.IsFalse(Directory.Exists(Path.Combine(options.ImportFolder, "Show" + CopyPlan.PartialSuffix)));
     }
 }

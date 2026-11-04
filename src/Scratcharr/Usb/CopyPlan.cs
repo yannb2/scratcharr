@@ -21,8 +21,13 @@ public enum UsbKind
     File
 }
 
-/// <summary>A file or folder on a USB disk, with its size (folders: everything inside).</summary>
-public sealed record UsbEntry(string Path, string Name, bool IsDirectory, long Size, int Files, UsbKind Kind, DateTime Modified);
+/// <summary>
+/// A file or folder on an external disk or share, with its size (folders: everything inside). Unreadable says why
+/// all or part of it can't be read; such an entry is listed but can't be copied. Partial: only part of the folder
+/// can't be read, so it can still be opened.
+/// </summary>
+public sealed record UsbEntry(string Path, string Name, bool IsDirectory, long Size, int Files, UsbKind Kind, DateTime Modified,
+    string? Unreadable = null, bool Partial = false);
 
 /// <summary>A USB disk: one folder under the USB root, with the free and total space of the mount it sits on.</summary>
 public sealed record UsbDisk(string Path, string Name, long Free, long Total, bool Mounted);
@@ -61,30 +66,92 @@ public static class CopyPlan
                 }
 
                 // An empty mount point (the disk is unplugged) sits on the same mount as the USB root.
-                var mounted = rootDevice == null || Device(d) != rootDevice || Directory.EnumerateFileSystemEntries(d).Any();
+                bool mounted;
+                try
+                {
+                    mounted = rootDevice == null || Device(d) != rootDevice || Directory.EnumerateFileSystemEntries(d).Any();
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    mounted = true; // There is something there, it just can't be listed: the folder page says why.
+                }
+
                 return new UsbDisk(d, System.IO.Path.GetFileName(d), free, total, mounted);
             })
             .ToList();
     }
 
-    /// <summary>The files and folders in a USB folder, folders first, each measured.</summary>
+    /// <summary>
+    /// The files and folders in a folder of an external disk, folders first, each measured. An entry that can't be
+    /// read, or only in part (Windows' System Volume Information...), is still listed, with the reason.
+    /// </summary>
     public static IReadOnlyList<UsbEntry> List(string folder, CancellationToken ct = default)
     {
         var entries = new List<UsbEntry>();
         foreach (var dir in Directory.GetDirectories(folder).Where(d => !IsLink(d)).Order(StringComparer.OrdinalIgnoreCase))
         {
             ct.ThrowIfCancellationRequested();
-            var (size, files) = Measure(dir);
-            entries.Add(new UsbEntry(dir, System.IO.Path.GetFileName(dir), true, size, files, KindOf(dir), Directory.GetLastWriteTimeUtc(dir)));
+            entries.Add(Folder(dir, System.IO.Path.GetFileName(dir)));
         }
 
         foreach (var file in Directory.GetFiles(folder).Where(f => !IsLink(f)).Order(StringComparer.OrdinalIgnoreCase))
         {
-            var info = new FileInfo(file);
-            entries.Add(new UsbEntry(file, info.Name, false, info.Length, 1, KindOf(file), info.LastWriteTimeUtc));
+            try
+            {
+                var info = new FileInfo(file);
+                entries.Add(new UsbEntry(file, info.Name, false, info.Length, 1, KindOf(file), info.LastWriteTimeUtc));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                entries.Add(new UsbEntry(file, System.IO.Path.GetFileName(file), false, 0, 1, UsbKind.File, default,
+                    $"Can't be read: {e.Message}"));
+            }
         }
 
         return entries;
+    }
+
+    private static UsbEntry Folder(string dir, string name)
+    {
+        try
+        {
+            var (size, files) = Measure(dir);
+            return new UsbEntry(dir, name, true, size, files, KindOf(dir), Directory.GetLastWriteTimeUtc(dir));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Count what can be read, and say that the rest can't (a copy would stop on it).
+            long size = 0;
+            var files = 0;
+            try
+            {
+                _ = Directory.EnumerateFileSystemEntries(dir).Any(); // The folder itself can't be opened?
+                foreach (var file in Files(dir, skipInaccessible: true))
+                {
+                    size += file.Length;
+                    files++;
+                }
+            }
+            catch (Exception inner) when (inner is IOException or UnauthorizedAccessException)
+            {
+                return new UsbEntry(dir, name, true, 0, 0, UsbKind.Folder, default, $"Can't be read: {inner.Message}");
+            }
+
+            return new UsbEntry(dir, name, true, size, files, UsbKind.Folder, SafeTime(dir),
+                $"Part of it can't be read: {e.Message}", Partial: true);
+        }
+    }
+
+    private static DateTime SafeTime(string path)
+    {
+        try
+        {
+            return Directory.GetLastWriteTimeUtc(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return default;
+        }
     }
 
     /// <summary>Bytes and files under a path, symbolic links left out (the copy skips them too).</summary>
@@ -107,12 +174,12 @@ public static class CopyPlan
     }
 
     /// <summary>Every regular file under a folder, without following or copying symbolic links.</summary>
-    public static IEnumerable<FileInfo> Files(string folder)
+    public static IEnumerable<FileInfo> Files(string folder, bool skipInaccessible = false)
     {
         var options = new EnumerationOptions
         {
             RecurseSubdirectories = true,
-            IgnoreInaccessible = false,
+            IgnoreInaccessible = skipInaccessible,
             AttributesToSkip = FileAttributes.ReparsePoint,
             ReturnSpecialDirectories = false
         };
@@ -169,7 +236,7 @@ public static class CopyPlan
 
         if (!File.Exists(source) && !Directory.Exists(source))
         {
-            return "It is not on the USB disk any more.";
+            return "It is not on the external disk any more.";
         }
 
         var name = System.IO.Path.GetFileName(target);

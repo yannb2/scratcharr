@@ -1,3 +1,4 @@
+@page "/external"
 @page "/usb"
 @implements IDisposable
 @inject ScanService Scans
@@ -6,17 +7,17 @@
 @inject IOptions<ScratcharrOptions> Options
 @using Microsoft.Extensions.Options
 
-<PageTitle>From USB · Scratcharr</PageTitle>
+<PageTitle>External · Scratcharr</PageTitle>
 
 <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-    <h2 class="mb-0 me-auto">From USB</h2>
+    <h2 class="mb-0 me-auto">External</h2>
     <a class="btn btn-sm btn-outline-secondary" href="jobs"><i class="bi bi-list-task me-1"></i>Jobs</a>
     <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
 </div>
 <p class="text-body-secondary small">
-    Copies files and folders from the USB disks and PC shares in <code>@O.UsbRoot</code> into the downloads: ISOs and BDMV folders go to
+    Copies files and folders from the USB disks and mounted shares in <code>@O.UsbRoot</code> into the downloads: ISOs and BDMV folders go to
     <code>@Rel(O.DiscsFolder)/</code> for Ripparr, videos and the rest to <code>@Rel(O.ImportFolder)/</code> for Manual Import in
-    Radarr or Sonarr. The USB disk is only read. @(O.VerifyCopies ? "Each copy is read back and compared (xxHash) before it gets its real name." : "")
+    Radarr or Sonarr. The source is only read. @(O.VerifyCopies ? "Each copy is read back and compared (xxHash) before it gets its real name." : "")
 </p>
 
 @if (!O.AllowChanges)
@@ -44,7 +45,7 @@ else if (Path == null)
                 <a class="card h-100 text-decoration-none" href="@Browse(disk.Path)">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-usb-drive fs-4 @(disk.Mounted ? "text-primary" : "text-body-secondary")"></i>
+                            <i class="bi bi-hdd fs-4 @(disk.Mounted ? "text-primary" : "text-body-secondary")"></i>
                             <span class="fw-semibold fs-5">@disk.Name</span>
                             @if (!disk.Mounted)
                             {
@@ -68,13 +69,13 @@ else if (Path == null)
 else if (_error != null)
 {
     <div class="alert alert-danger small">@_error</div>
-    <a href="usb"><i class="bi bi-arrow-left me-1"></i>All disks</a>
+    <a href="external"><i class="bi bi-arrow-left me-1"></i>All disks and shares</a>
 }
 else
 {
     <nav aria-label="Folder" class="mb-2">
         <ol class="breadcrumb mb-0 small">
-            <li class="breadcrumb-item"><a href="usb"><i class="bi bi-usb-drive me-1"></i>USB</a></li>
+            <li class="breadcrumb-item"><a href="external"><i class="bi bi-hdd-network me-1"></i>External</a></li>
             @foreach (var (name, path) in Crumbs())
             {
                 if (path == Path)
@@ -118,11 +119,26 @@ else
                     @foreach (var row in _rows)
                     {
                         var entry = row.Entry;
-                        <tr>
+                        <tr class="@(entry.Unreadable != null ? "table-danger" : "")">
                             <td><input class="form-check-input" type="checkbox" aria-label="Select @entry.Name" disabled="@(!row.Free)" @bind="row.Selected"/></td>
                             <td class="text-break">
                                 <i class="bi @Icon(entry) me-1"></i>
-                                @if (entry.IsDirectory)
+                                @if (entry.Unreadable != null)
+                                {
+                                    @if (entry.Partial)
+                                    {
+                                        <a class="text-danger" href="@Browse(entry.Path)">@entry.Name</a>
+                                    }
+                                    <button class="btn btn-link p-0 text-danger text-start text-break" @onclick="() => row.ShowError = !row.ShowError"
+                                            title="Show why it can't be read">
+                                        @(entry.Partial ? "" : entry.Name) <i class="bi bi-exclamation-octagon ms-1"></i>
+                                    </button>
+                                    @if (row.ShowError)
+                                    {
+                                        <div class="small text-danger mt-1">@entry.Unreadable</div>
+                                    }
+                                }
+                                else if (entry.IsDirectory)
                                 {
                                     <a href="@Browse(entry.Path)">@entry.Name</a>
                                 }
@@ -133,14 +149,18 @@ else
                             </td>
                             <td class="small text-nowrap">
                                 <span class="badge text-bg-@KindCss(entry.Kind)">@KindText(entry.Kind)</span>
-                                @if (entry.IsDirectory)
+                                @if (entry.IsDirectory && (entry.Unreadable == null || entry.Partial))
                                 {
-                                    <span class="text-body-secondary ms-1">@(entry.Files == 1 ? "1 file" : $"{entry.Files} files")</span>
+                                    <span class="@(entry.Unreadable == null ? "text-body-secondary" : "") ms-1">@(entry.Files == 1 ? "1 file" : $"{entry.Files} files")@(entry.Partial ? "+" : "")</span>
                                 }
                             </td>
                             <td class="text-end small text-nowrap">@Format.Size(entry.Size)</td>
                             <td class="small">
-                                @if (row.Existing != null)
+                                @if (entry.Unreadable != null)
+                                {
+                                    <span class="text-danger text-nowrap"><i class="bi bi-x-circle me-1"></i>Can't copy</span>
+                                }
+                                else if (row.Existing != null)
                                 {
                                     <span class="text-success"><i class="bi bi-check-circle me-1"></i>Already in @Rel(System.IO.Path.GetDirectoryName(row.Existing)!)/</span>
                                 }
@@ -202,7 +222,8 @@ else
         public bool Selected { get; set; }
         public string? Existing { get; set; }
         public bool Queued { get; set; }
-        public bool Free => Existing == null && !Queued;
+        public bool ShowError { get; set; }
+        public bool Free => Existing == null && !Queued && Entry.Unreadable == null;
     }
 
     private ScratcharrOptions O => Options.Value;
@@ -328,7 +349,7 @@ else
         ? System.IO.Path.GetRelativePath(O.DownloadsRoot, folder)
         : folder;
 
-    private static string Browse(string path) => "usb?path=" + Uri.EscapeDataString(path);
+    private static string Browse(string path) => "external?path=" + Uri.EscapeDataString(path);
 
     /// <summary>The disk and folders from the USB root down to the current folder.</summary>
     private IEnumerable<(string Name, string Path)> Crumbs()

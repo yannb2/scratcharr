@@ -295,7 +295,7 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         var m when m.Contains("Read-only file system", StringComparison.OrdinalIgnoreCase) =>
             "/downloads is mounted read-only. Mount it read-write (without :ro) to copy.",
         var m when m.Contains("Input/output error", StringComparison.OrdinalIgnoreCase) =>
-            "The USB disk gave a read error (Input/output error). Check the cable and the disk.",
+            "The external disk or share gave a read error (Input/output error). Check the cable, the disk or the share.",
         _ => e.Message
     };
 
