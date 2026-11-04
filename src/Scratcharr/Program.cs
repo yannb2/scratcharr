@@ -17,7 +17,8 @@ CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 var builder = WebApplication.CreateBuilder(args);
 
 // ASP.NET's data-protection keys (antiforgery tokens) in /config/keys, so they survive an update.
-DataProtectionKeys.PersistKeysIn(builder, Path.GetDirectoryName(builder.Configuration["Scratcharr:DatabasePath"] ?? "/config/scratcharr.db") ?? "/config", "Scratcharr");
+var configFolder = Path.GetDirectoryName(builder.Configuration["Scratcharr:DatabasePath"] ?? "/config/scratcharr.db") ?? "/config";
+DataProtectionKeys.PersistKeysIn(builder, configFolder, "Scratcharr");
 
 builder.Services.AddOptions<ScratcharrOptions>()
     .Bind(builder.Configuration.GetSection(ScratcharrOptions.Section))
@@ -25,6 +26,10 @@ builder.Services.AddOptions<ScratcharrOptions>()
 
 // The last lines in memory for the Logs page (arrkit, shared with Ripparr, Salvarr, Specarr).
 var memoryLog = new MemoryLog();
+// Also in /config/logs, so the Logs page's second tab has the last lines from before a restart
+// (how many: Logs__KeepLines, default 2000).
+memoryLog.KeepFile(Path.Combine(configFolder, "logs", "scratcharr.jsonl"),
+    builder.Configuration.GetValue(MemoryLog.KeepLinesKey, MemoryLog.Capacity));
 builder.Logging.AddProvider(new MemoryLoggerProvider(memoryLog));
 builder.Services.AddSingleton(memoryLog);
 
