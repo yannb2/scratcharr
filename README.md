@@ -21,10 +21,9 @@ the USB disks are only read, and nothing is deleted before 7 days in the recycle
 | From USB | The disks in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Tick, pick Auto / import / discs, Copy |
 | Recycle | What Clean up moved away: days left, Restore, Delete, Empty now; the action log; the weekly ntfy summary (Send now) |
 | Jobs | Unpacks and copies one at a time with a progress bar, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
-| Settings check | Per download client category: its folder, which arr app uses it, who removes finished downloads. Warnings about gaps |
 | Logs | The last 2000 lines since the app started, newest first, with search and a level filter (shared arrkit code) |
 | Tools | 7-Zip's version, its pin and the newest release |
-| Settings | Connections (saved in the database, they win over the environment variables) and the running values |
+| Settings | Integrations: connections (saved in the database, they win over the environment variables). Settings check: per download client category, its folder, which arr app uses it, who removes finished downloads, with warnings about gaps (the count shows on the tab and next to Settings in the menu). Status: the running values |
 
 An **item** is one entry of a watched folder: a torrent's folder or file, a usenet job folder, something copied
 by hand. Category folders (`radarr`, `sonarr`, `manual`, `prowlarr`, and every category qBittorrent or SABnzbd reports)

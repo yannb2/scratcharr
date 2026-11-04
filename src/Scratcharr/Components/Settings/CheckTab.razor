@@ -1,19 +1,14 @@
-@page "/check"
 @inject ScanService Scans
 @inject IOptions<ScratcharrOptions> Options
 @using Microsoft.Extensions.Options
 
-<PageTitle>Settings check · Scratcharr</PageTitle>
-
-<div class="d-flex align-items-center flex-wrap gap-2 border-bottom pb-3 mb-3">
-    <h2 class="mb-0 me-auto"><i class="bi bi-clipboard-check me-2"></i>Settings check</h2>
+<div class="d-flex align-items-start flex-wrap gap-2 mb-3">
+    <p class="text-body-secondary mb-0 me-auto">
+        What removes what in <code>@Options.Value.DownloadsRoot</code>, read from qBittorrent, SABnzbd and the arr apps'
+        download clients. Nothing here is changed: fix a gap in the app it belongs to, then scan again.
+    </p>
     <ScanButton Scanned="StateHasChanged"/>
 </div>
-
-<p class="text-body-secondary">
-    What removes what in <code>@Options.Value.DownloadsRoot</code>, read from qBittorrent, SABnzbd and the arr apps'
-    download clients. Nothing here is changed: fix a gap in the app it belongs to, then scan again.
-</p>
 
 @if (Scans.Last is not { } scan)
 {
