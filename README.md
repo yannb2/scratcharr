@@ -21,6 +21,7 @@ the archives and the USB disks are only read.
 | From USB | The disks in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Tick, pick Auto / import / discs, Copy |
 | Jobs | Unpacks and copies one at a time with a progress bar, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
 | Settings check | Per download client category: its folder, which arr app uses it, who removes finished downloads. Warnings about gaps |
+| Logs | The last 2000 lines since the app started, newest first, with search and a level filter (shared arrkit code) |
 | Tools | 7-Zip's version, its pin and the newest release |
 | Settings | Connections (saved in the database, they win over the environment variables) and the running values |
 

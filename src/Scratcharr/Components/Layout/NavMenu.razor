@@ -50,6 +50,12 @@
                 </NavLink>
             </li>
             <li class="nav-item">
+                <NavLink class="nav-link" href="logs" @onclick="Close">
+                    <i class="bi bi-journal-text"></i>
+                    <span>Logs</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
                 <NavLink class="nav-link" href="tools" @onclick="Close">
                     <i class="bi bi-tools"></i>
                     <span>Tools@(Tools.UpdateCount > 0 ? $" ({Tools.UpdateCount})" : "")</span>
