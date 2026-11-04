@@ -25,6 +25,7 @@ public sealed record ScanResult
 public sealed class ScanService(
     IOptions<ScratcharrOptions> options,
     Store store,
+    LiveSettings live,
     QbittorrentClient qbittorrent,
     SabnzbdClient sabnzbd,
     ArrClient arr,
@@ -94,7 +95,7 @@ public sealed class ScanService(
             };
 
             var categories = CategoryNames(_options, evidence);
-            var disk = await Task.Run(() => DiskScanner.Scan(_options, categories, cancellationToken), cancellationToken);
+            var disk = await Task.Run(() => DiskScanner.Scan(_options, categories, cancellationToken, live.Protected), cancellationToken);
             var now = DateTime.UtcNow;
             var seen = store.MarkSeen(disk.Select(d => d.Path).ToList(), now);
             var items = disk

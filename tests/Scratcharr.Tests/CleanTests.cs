@@ -47,7 +47,7 @@ public sealed class CleanTests
         var live = new LiveSettings(MsOptions.Create(options), store);
         var qbt = new QbittorrentClient(live, NullLogger<QbittorrentClient>.Instance);
         var sab = new SabnzbdClient(live, NullLogger<SabnzbdClient>.Instance);
-        var scans = new ScanService(MsOptions.Create(options), store, qbt, sab,
+        var scans = new ScanService(MsOptions.Create(options), store, live, qbt, sab,
             new ArrClient(live, NullLogger<ArrClient>.Instance), NullLogger<ScanService>.Instance);
         return (new Cleaner(MsOptions.Create(options), store, scans, qbt, sab, NullLogger<Cleaner>.Instance), scans, store);
     }

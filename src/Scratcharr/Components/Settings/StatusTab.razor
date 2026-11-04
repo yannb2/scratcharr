@@ -19,7 +19,16 @@
                 {
                     <tr><td class="text-body-secondary text-nowrap">@folder.Name</td><td class="sv-path">@folder.Path</td></tr>
                 }
-                <tr><td class="text-body-secondary text-nowrap">Protected</td><td class="sv-path">@string.Join(", ", Options.Value.Protected)</td></tr>
+                <tr>
+                    <td class="text-body-secondary text-nowrap">Protected</td>
+                    <td class="sv-path">
+                        @foreach (var path in Live.Protected)
+                        {
+                            <div>@path</div>
+                        }
+                        <a class="small" href="settings/protected">Manage</a>
+                    </td>
+                </tr>
                 <tr><td class="text-body-secondary text-nowrap">Category folders</td><td>@string.Join(", ", Options.Value.CategoryFolders) (plus the clients' categories)</td></tr>
                 <tr><td class="text-body-secondary text-nowrap">Database</td><td class="sv-path">@Options.Value.DatabasePath</td></tr>
                 </tbody>
