@@ -58,7 +58,7 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | `CategoryFolders__N` | radarr, sonarr, lidarr, books, manual, prowlarr | Opened even when no client has the category yet |
 | `ScanMinutes` | 15 | Minutes between scans (Scan now starts one at any time) |
 | `AllowChanges` | false | Off: read-only. For the unpack, copy and clean-up buttons of later versions |
-| `Qbittorrent__Url/Username/Password` | | `http://gluetun:8080`; leave the login empty when the subnet is whitelisted |
+| `Qbittorrent__Url/ApiKey/Username/Password` | | `http://gluetun:8080`; the API key (qBittorrent 5.2+, Options > WebUI) wins over the login; leave both empty when the subnet is whitelisted |
 | `Sabnzbd__Url/ApiKey` | | `http://sabnzbd:8080` |
 | `Radarr__`, `Sonarr__`, `Lidarr__` `Url/ApiKey` | | |
 | `DatabasePath` | `/config/scratcharr.db` | Saved connections, first-seen times |

@@ -147,7 +147,10 @@ public class QbittorrentOptions
     /// <summary>qBittorrent sits behind gluetun: http://gluetun:8080 on the compose network.</summary>
     public string Url { get; set; } = "";
 
-    /// <summary>Empty when qBittorrent lets this subnet in without a login.</summary>
+    /// <summary>qBittorrent 5.2+ (Options > WebUI > API key). Wins over the username and password.</summary>
+    public string ApiKey { get; set; } = "";
+
+    /// <summary>Empty when an API key is set, or when qBittorrent lets this subnet in without a login.</summary>
     public string Username { get; set; } = "";
 
     public string Password { get; set; } = "";

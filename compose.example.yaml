@@ -8,6 +8,7 @@ services:
       TZ: America/Toronto
       Scratcharr__AllowChanges: "false"            # read-only; later versions use true for unpack, copy, clean-up
       Scratcharr__Qbittorrent__Url: http://gluetun:8080
+      Scratcharr__Qbittorrent__ApiKey: ${QBT_API_KEY:-}     # qBittorrent 5.2+; or the login below
       Scratcharr__Qbittorrent__Username: ${QBT_USER:-}
       Scratcharr__Qbittorrent__Password: ${QBT_PASSWORD:-}
       Scratcharr__Sabnzbd__Url: http://sabnzbd:8080
