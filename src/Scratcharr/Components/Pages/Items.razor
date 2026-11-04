@@ -86,6 +86,7 @@ else
                     <th>Verdict</th>
                     <th class="d-none d-lg-table-cell">Client</th>
                     <th class="d-none d-xl-table-cell">Arr</th>
+                    <th class="d-none d-lg-table-cell">@SortHeader("seeding", "Seeding")</th>
                     <th class="text-end">@SortHeader("size", "Size")</th>
                     <th class="text-end">@SortHeader("age", "Changed")</th>
                     <th class="d-none d-md-table-cell">Leaves</th>
@@ -137,6 +138,25 @@ else
                             }
                             @string.Join(", ", app)
                         </td>
+                        <td class="d-none d-lg-table-cell small text-nowrap">
+                            @if (item.Torrents.FirstOrDefault(t => t.Finished) is { } seeding)
+                            {
+                                var limit = scan.Evidence.Qbittorrent.State is { } qbt ? seeding.LimitMinutes(qbt.Limits) : null;
+                                <span title="@SeedTitle(seeding, limit)">
+                                    @Format.SeedTime(seeding.SeedingSeconds)@if (limit is { } l)
+                                    {
+                                        <span class="text-body-secondary"> / @Format.SeedTime(l * 60)</span>
+                                    }
+                                </span>
+                                @if (limit is { } max && max > 0)
+                                {
+                                    <div class="progress mt-1" style="height: 3px; width: 5rem" role="progressbar" aria-label="Seeding time used">
+                                        <div class="progress-bar @(seeding.SeedingSeconds >= max * 60 ? "bg-success" : "")"
+                                             style="width: @(Math.Min(100, seeding.SeedingSeconds * 100 / (max * 60)))%"></div>
+                                    </div>
+                                }
+                            }
+                        </td>
                         <td class="text-end text-nowrap">@Format.Size(item.Item.Size)</td>
                         <td class="text-end text-nowrap small" title="@Format.LocalDate(item.Item.Modified)">@Format.TimeAgo(item.Item.Modified)</td>
                         <td class="d-none d-md-table-cell small">
@@ -160,7 +180,7 @@ else
                 }
                 @if (shown.Count == 0)
                 {
-                    <tr><td colspan="8" class="text-body-secondary">Nothing matches.</td></tr>
+                    <tr><td colspan="9" class="text-body-secondary">Nothing matches.</td></tr>
                 }
                 </tbody>
             </table>
@@ -174,6 +194,11 @@ else
     private readonly HashSet<string> _picked = [];
     private ConfirmDialog? _confirm;
     private bool _busy;
+
+    private static string SeedTitle(Torrent torrent, long? limit) =>
+        $"Seeding {Classifier.Hours(torrent.SeedingSeconds / 60)}"
+        + (limit is { } l ? $" of {Classifier.Hours(l)}" : ", no time limit")
+        + (torrent.Stopped ? " (stopped)" : "");
 
     private void Pick(ItemReport item, bool on)
     {
@@ -270,6 +295,7 @@ else
         {
             "name" => items.OrderBy(i => i.Item.Name, StringComparer.OrdinalIgnoreCase),
             "age" => items.OrderBy(i => i.Item.Modified),
+            "seeding" => items.OrderByDescending(i => i.Torrents.FirstOrDefault(t => t.Finished)?.SeedingSeconds ?? -1),
             _ => items.OrderByDescending(i => i.Item.Size)
         };
     }

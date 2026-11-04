@@ -34,6 +34,17 @@ public sealed record Torrent
 
     public bool Errored => State is "error" or "missingFiles";
 
+    /// <summary>
+    /// The seeding time limit that applies, in minutes: the torrent's own, else qBittorrent's global one. Null when
+    /// there is none (-1 = no limit, or no global limit set).
+    /// </summary>
+    public long? LimitMinutes(SeedingLimits global) => SeedingLimitMinutes switch
+    {
+        -2 => global.Minutes,
+        < 0 => null,
+        var m => m
+    };
+
     /// <summary>A short word for the state: Downloading, Seeding, Stopped...</summary>
     public string StateWord => State switch
     {

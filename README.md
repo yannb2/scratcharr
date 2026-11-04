@@ -15,7 +15,7 @@ the USB disks are only read, and nothing is deleted before 7 days in the recycle
 | Page | |
 | --- | --- |
 | Overview | Space used and free, totals per verdict, the biggest items to review, what leaves in the next 24 h, every folder |
-| Downloads | Every item with its verdict, client state, arr app, size, age and when it leaves. Filters live in the URL. Tick items and Recycle them |
+| Downloads | Every item with its verdict, client state, arr app, seeding time (of its limit), size, age and when it leaves. Filters live in the URL. Tick items and Recycle them |
 | Item | The evidence: torrent, SABnzbd job, arr queue and history, the largest files |
 | Unpack | Every archive set (`.partNN.rar`, `.rar` + `.r00`, `.7z`, `.7z.001`, `.zip`) per item: parts, size, Look inside (7-Zip's listing: ISOs, BDMV, videos, unpacked size), a folder name, Unpack |
 | From USB | The disks in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Tick, pick Auto / import / discs, Copy |

@@ -374,12 +374,7 @@ public static class Classifier
         if (torrents.Count > 0 && evidence.Qbittorrent.State is { } qbt)
         {
             var torrent = torrents[0];
-            var limitMinutes = torrent.SeedingLimitMinutes switch
-            {
-                -2 => qbt.Limits.Minutes,
-                -1 => null,
-                var m => (long?)m
-            };
+            var limitMinutes = torrent.LimitMinutes(qbt.Limits);
             var who = WhoAfterTheLimit(torrent.Category, qbt.Limits.Action, evidence, "QBittorrent");
             if (limitMinutes == null && (torrent.RatioLimit == -1 || (torrent.RatioLimit == -2 && qbt.Limits.Ratio == null)))
             {
