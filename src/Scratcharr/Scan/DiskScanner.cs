@@ -132,7 +132,8 @@ public static class DiskScanner
         // A folder 7-Zip is still filling (Unpack), or a copy from USB, is Scratcharr's own work in progress.
         var isProtected = options.Protected.Any(p => Paths.IsUnder(path, p) || path == p)
                           || entry.Name.EndsWith(Jobs.UnpackPlan.PartialSuffix, StringComparison.Ordinal)
-                          || entry.Name.EndsWith(Usb.CopyPlan.PartialSuffix, StringComparison.Ordinal);
+                          || entry.Name.EndsWith(Usb.CopyPlan.PartialSuffix, StringComparison.Ordinal)
+                          || entry.Name == System.IO.Path.GetFileName(options.RecycleFolder);
         if (entry is FileInfo file)
         {
             return new DiskItem

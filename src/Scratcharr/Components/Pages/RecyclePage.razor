@@ -1,0 +1,246 @@
+@page "/recycle"
+@implements IDisposable
+@inject Cleaner Cleaner
+@inject CleanupService Cleanup
+@inject Toasts Toasts
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+
+<PageTitle>Recycle · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <h2 class="mb-0 me-auto">Recycle</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="items?view=review"><i class="bi bi-folder2-open me-1"></i>To review</a>
+    <button class="btn btn-sm btn-outline-danger" disabled="@(_items.Count == 0 || !O.AllowChanges)" @onclick="Empty">
+        <i class="bi bi-trash me-1"></i>Empty now
+    </button>
+</div>
+<p class="text-body-secondary small">
+    What Clean up moved out of the downloads, in <code>@O.RecycleFolder/&lt;date&gt;/</code> (or a <code>.recycle</code> folder at the
+    top of another mount inside <code>@O.DownloadsRoot</code>). Each item is kept @O.RecycleDays.ToString("0.#") days, then deleted
+    for good. Restore puts it back where it was; a torrent removed from qBittorrent has to be added again by hand.
+</p>
+
+@if (!O.AllowChanges)
+{
+    <div class="alert alert-secondary small"><i class="bi bi-lock me-1"></i>@Scratcharr.Jobs.UnpackPlan.ChangesOff</div>
+}
+
+<div class="card mb-3">
+    @if (_items.Count == 0)
+    {
+        <div class="card-body text-body-secondary">The recycle folder is empty. Recycle items from the <a href="items?view=review">Downloads</a> page.</div>
+    }
+    else
+    {
+        <div class="card-header d-flex flex-wrap gap-2 small">
+            <span class="fw-semibold me-auto">@(_items.Count == 1 ? "1 item" : $"{_items.Count} items"), @Format.Size(_items.Sum(i => i.Size))</span>
+            @if (_items.Min(i => i.DeleteAt(O.RecycleDays)) is var next)
+            {
+                <span class="text-body-secondary">next deletion @Format.TimeUntil(next)</span>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                <tr>
+                    <th>Item</th>
+                    <th class="text-end">Size</th>
+                    <th class="d-none d-md-table-cell">Recycled</th>
+                    <th>Deleted</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in _items.OrderByDescending(i => i.Recycled))
+                {
+                    <tr>
+                        <td class="text-break">
+                            <span class="fw-semibold">@item.Name</span>
+                            @if (item.Verdict.Length > 0)
+                            {
+                                <span class="badge sv-badge-muted ms-1">@item.Verdict</span>
+                            }
+                            <div class="small text-body-secondary sv-path">@item.Original</div>
+                            @if (item.Note.Length > 0)
+                            {
+                                <div class="small text-body-secondary">@item.Note</div>
+                            }
+                        </td>
+                        <td class="text-end text-nowrap small">@Format.Size(item.Size)</td>
+                        <td class="d-none d-md-table-cell text-nowrap small" title="@Format.LocalDate(item.Recycled)">@Format.TimeAgo(item.Recycled)</td>
+                        <td class="text-nowrap small" title="@Format.LocalDate(item.DeleteAt(O.RecycleDays))">@Format.TimeUntil(item.DeleteAt(O.RecycleDays))</td>
+                        <td class="text-end text-nowrap">
+                            <button class="btn btn-sm btn-outline-primary py-0" disabled="@(!O.AllowChanges)" @onclick="() => Restore(item)">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Restore
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger py-0" disabled="@(!O.AllowChanges)" @onclick="() => Delete(item)" title="Delete for good">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header fw-semibold">Action log</div>
+            @if (_actions.Count == 0)
+            {
+                <div class="card-body small text-body-secondary">No changes yet.</div>
+            }
+            else
+            {
+                <div class="table-responsive" style="max-height: 28rem">
+                    <table class="table table-sm align-middle mb-0 small">
+                        <tbody>
+                        @foreach (var action in _actions)
+                        {
+                            <tr class="@(action.Ok ? "" : "table-danger")">
+                                <td class="text-nowrap text-body-secondary" title="@Format.LocalDate(action.Time)">@Format.TimeAgo(action.Time)</td>
+                                <td class="text-nowrap fw-semibold">@action.Action</td>
+                                <td class="text-break">
+                                    <span class="sv-path">@action.Path</span>
+                                    <div class="text-body-secondary">@action.Detail</div>
+                                </td>
+                                <td class="text-end text-nowrap">@(action.Size > 0 ? Format.Size(action.Size) : "")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header fw-semibold"><i class="bi bi-bell me-1"></i>Weekly summary</div>
+            <div class="card-body small">
+                @if (O.Ntfy.Configured)
+                {
+                    <p class="mb-2">
+                        Sent to ntfy every @O.Ntfy.Day at @(O.Ntfy.Hour):00: what needs a look, what is new this week, and the recycle folder.
+                    </p>
+                    <p class="text-body-secondary mb-2">
+                        Next: @(Cleanup.NextDue?.ToString("ddd d MMM, HH:mm") ?? "-")@(Cleanup.LastSent is { } sent ? $". Last: {Format.TimeAgo(sent)}" : "").
+                    </p>
+                    <button class="btn btn-sm btn-outline-primary" disabled="@_sending" @onclick="SendNow">
+                        <i class="bi bi-send me-1"></i>Send now
+                    </button>
+                }
+                else
+                {
+                    <p class="text-body-secondary mb-0">
+                        Set <code>Scratcharr__Ntfy__Url</code> (the same <code>NTFY_URL</code> as the scripts) to get a weekly summary of what
+                        needs a look.
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<ConfirmDialog @ref="_confirm"/>
+
+@code {
+    private ScratcharrOptions O => Options.Value;
+    private IReadOnlyList<RecycledItem> _items = [];
+    private IReadOnlyList<ActionEntry> _actions = [];
+    private ConfirmDialog? _confirm;
+    private bool _sending;
+
+    protected override void OnInitialized()
+    {
+        Load();
+        Cleaner.Changed += OnChanged;
+    }
+
+    private void Load()
+    {
+        _items = Cleaner.Recycled();
+        _actions = Cleaner.Actions();
+    }
+
+    private async Task Restore(RecycledItem item)
+    {
+        var ok = await _confirm!.Ask("Restore?", $"{item.Name} goes back to {item.Original}.", "Restore");
+        if (!ok)
+        {
+            return;
+        }
+
+        var error = Cleaner.Restore(item.Id);
+        if (error == null)
+        {
+            Toasts.Success($"Restored {item.Name}.");
+        }
+        else
+        {
+            Toasts.Error($"{item.Name}: {error}");
+        }
+
+        Load();
+    }
+
+    private async Task Delete(RecycledItem item)
+    {
+        var ok = await _confirm!.Ask("Delete for good?", $"{item.Name} ({Format.Size(item.Size)}) is deleted now. This can't be undone.", "Delete", danger: true);
+        if (ok)
+        {
+            Report(Cleaner.Delete([item.Id]));
+        }
+    }
+
+    private async Task Empty()
+    {
+        var ok = await _confirm!.Ask("Empty the recycle folder?",
+            $"{_items.Count} items, {Format.Size(_items.Sum(i => i.Size))}, are deleted now. This can't be undone.", "Empty now", danger: true);
+        if (ok)
+        {
+            Report(Cleaner.Delete(null));
+        }
+    }
+
+    private void Report((int Count, long Bytes, string? Error) result)
+    {
+        if (result.Count > 0)
+        {
+            Toasts.Success($"Deleted {(result.Count == 1 ? "1 item" : $"{result.Count} items")}, {Format.Size(result.Bytes)}.");
+        }
+
+        if (result.Error != null)
+        {
+            Toasts.Error(result.Error);
+        }
+
+        Load();
+    }
+
+    private async Task SendNow()
+    {
+        _sending = true;
+        var error = await Cleanup.SendNowAsync(CancellationToken.None);
+        _sending = false;
+        if (error == null)
+        {
+            Toasts.Success("Summary sent to ntfy.");
+        }
+        else
+        {
+            Toasts.Error(error);
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(() =>
+    {
+        Load();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Cleaner.Changed -= OnChanged;
+}

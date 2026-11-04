@@ -209,22 +209,6 @@ public static class CopyPlan
         }
     }
 
-    /// <summary>The mount a path sits on (st_dev), to tell a mounted disk from an empty mount point.</summary>
-    private static string? Device(string path)
-    {
-        try
-        {
-            // /proc/self/mountinfo lists mount points; the longest one that contains the path is its mount.
-            var mounts = File.ReadLines("/proc/self/mountinfo")
-                .Select(l => l.Split(' '))
-                .Where(f => f.Length > 4)
-                .Select(f => f[4].Replace("\\040", " "))
-                .ToList();
-            return mounts.Where(m => m == path || Paths.IsUnder(path, m) || m == "/").MaxBy(m => m.Length);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
+    /// <summary>The mount a path sits on, to tell a mounted disk from an empty mount point.</summary>
+    private static string? Device(string path) => Mounts.Of(path);
 }

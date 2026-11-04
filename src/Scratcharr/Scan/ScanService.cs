@@ -32,6 +32,7 @@ public sealed class ScanService(
 {
     private readonly ScratcharrOptions _options = options.Value;
     private readonly SemaphoreSlim _scanNow = new(0);
+    private readonly SemaphoreSlim _one = new(1, 1);
 
     public ScanResult? Last { get; private set; }
     public bool Scanning { get; private set; }
@@ -62,6 +63,19 @@ public sealed class ScanService(
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
+    {
+        await _one.WaitAsync(cancellationToken);
+        try
+        {
+            await ScanAsync(cancellationToken);
+        }
+        finally
+        {
+            _one.Release();
+        }
+    }
+
+    private async Task ScanAsync(CancellationToken cancellationToken)
     {
         Scanning = true;
         Changed?.Invoke();

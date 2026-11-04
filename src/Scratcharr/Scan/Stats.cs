@@ -27,7 +27,13 @@ public sealed record Stats
     /// <summary>Unpack jobs queued or running.</summary>
     public int Jobs { get; init; }
 
-    public static Stats From(ScanResult? scan, bool scanning, ToolStatusService tools, int openJobs = 0)
+    /// <summary>Items in the recycle folder and their size.</summary>
+    public int Recycled { get; init; }
+
+    public long RecycledBytes { get; init; }
+
+    public static Stats From(ScanResult? scan, bool scanning, ToolStatusService tools, int openJobs = 0,
+        IReadOnlyList<Options.RecycledItem>? recycled = null)
     {
         var items = scan?.Items ?? [];
         var review = items.Where(i => i.Verdict.NeedsReview()).ToList();
@@ -47,7 +53,9 @@ public sealed record Stats
             LastScan = scan?.FinishedAt,
             ToolUpdates = tools.UpdateCount,
             Archives = items.Count(i => Scratcharr.Jobs.UnpackPlan.Offers(i.Item)),
-            Jobs = openJobs
+            Jobs = openJobs,
+            Recycled = recycled?.Count ?? 0,
+            RecycledBytes = recycled?.Sum(r => r.Size) ?? 0
         };
     }
 }

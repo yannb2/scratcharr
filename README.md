@@ -2,23 +2,24 @@
 
 Manages the downloads folder (`/downloads` on the `scratch` pool): it finds what nothing claims any more,
 says who will remove each download and when, unpacks archived ISOs for Ripparr, copies files and folders in
-from USB disks, and (in a later version) cleans up. Same look as Ripparr and the Muxarr fork, shared code from
+from USB disks, and cleans up through a 7-day recycle folder. Same look as Ripparr and the Muxarr fork, shared code from
 [arrkit](https://github.com/yannb2/arrkit).
 
 **Read-only by default.** It reads qBittorrent, SABnzbd, Radarr, Sonarr and Lidarr and walks the folders; it
-never changes a file, a torrent or a setting, and the downloads volume can be mounted `:ro`. Unpacking (v0.2)
-and copying from USB (v0.3) need `Scratcharr__AllowChanges=true` and `/downloads` mounted read-write; even then
-the archives and the USB disks are only read.
+never changes a file, a torrent or a setting, and the downloads volume can be mounted `:ro`. Unpack, From USB
+and Clean up need `Scratcharr__AllowChanges=true` and `/downloads` mounted read-write; even then the archives and
+the USB disks are only read, and nothing is deleted before 7 days in the recycle folder.
 
 ## What it shows
 
 | Page | |
 | --- | --- |
 | Overview | Space used and free, totals per verdict, the biggest items to review, what leaves in the next 24 h, every folder |
-| Downloads | Every item with its verdict, client state, arr app, size, age and when it leaves. Filters live in the URL |
+| Downloads | Every item with its verdict, client state, arr app, size, age and when it leaves. Filters live in the URL. Tick items and Recycle them |
 | Item | The evidence: torrent, SABnzbd job, arr queue and history, the largest files |
 | Unpack | Every archive set (`.partNN.rar`, `.rar` + `.r00`, `.7z`, `.7z.001`, `.zip`) per item: parts, size, Look inside (7-Zip's listing: ISOs, BDMV, videos, unpacked size), a folder name, Unpack |
 | From USB | The disks in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Tick, pick Auto / import / discs, Copy |
+| Recycle | What Clean up moved away: days left, Restore, Delete, Empty now; the action log; the weekly ntfy summary (Send now) |
 | Jobs | Unpacks and copies one at a time with a progress bar, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
 | Settings check | Per download client category: its folder, which arr app uses it, who removes finished downloads. Warnings about gaps |
 | Logs | The last 2000 lines since the app started, newest first, with search and a level filter (shared arrkit code) |
@@ -69,6 +70,10 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | `UsbRoot` | `/mnt/pc` | The USB disks, one folder each; mount it `:ro,rslave` |
 | `UsbSkip__N` | `iso-mounts` | Folders in `/mnt/pc` that are not disks (Ripparr's ISO mounts): not listed |
 | `VerifyCopies` | true | Read each copy back and compare its xxHash with the original's before it gets its real name |
+| `RecycleFolder` | `.recycle` | Where Recycle moves items, `<date>/<path inside /downloads>` |
+| `RecycleDays` | 7 | Days before a recycled item is deleted for good (checked hourly) |
+| `Ntfy__Url/Token` | | ntfy topic URL (`NTFY_URL`, as for the scripts) and optional token: the weekly summary |
+| `Ntfy__Day/Hour` | Monday, 9 | When the summary goes out (local time) |
 | `RipparrUrl` | | Ripparr as the browser reaches it (`http://10.1.72.11:8186`), for Open in Ripparr links |
 | `Qbittorrent__Url/ApiKey/Username/Password` | | `http://gluetun:8080`; the API key (qBittorrent 5.2+, Options > WebUI) wins over the login; leave both empty when the subnet is whitelisted |
 | `Sabnzbd__Url/ApiKey` | | `http://sabnzbd:8080` |
@@ -79,7 +84,8 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 See [compose.example.yaml](compose.example.yaml). Port 8188.
 
 `/api/stats` (no key) gives `items`, `strays`, `strayBytes`, `toReview`, `toReviewBytes`, `active`, `manual`,
-`usedBytes`, `freeBytes`, `scanning`, `lastScan`, `toolUpdates`, `archives`, `jobs` for a Homepage tile.
+`usedBytes`, `freeBytes`, `scanning`, `lastScan`, `toolUpdates`, `archives`, `jobs`, `recycled`, `recycledBytes`
+for a Homepage tile.
 
 ### Unpack
 
@@ -114,12 +120,41 @@ deleted from the USB disk, which stays mounted `:ro`. Before queuing, and again 
 - Nothing by that name exists in the target folder, and no job is copying it already.
 - The size plus 1 GiB fits in the free space.
 
+### Clean up
+
+The item page says what Clean up can do with an item, or why not. On the Downloads page, tick the items that
+can be cleaned and press Recycle.
+
+- **Recycle** moves the item to `/downloads/.recycle/<date>/<path inside /downloads>`. That is a rename, so it is
+  instant. An item on another mount inside `/downloads` goes to a `.recycle` folder at the top of that mount.
+  A finished SABnzbd job also loses its history entry (its files are only moved).
+- **Remove torrent and recycle** applies when a torrent still owns the item. It removes the torrent in qBittorrent
+  without its files, then recycles the files, so qBittorrent never sees files vanish under a torrent it lists.
+- **Not offered** for these items:
+  - protected folders;
+  - SABnzbd's incomplete folder;
+  - anything an arr app is waiting to import;
+  - a running SABnzbd job;
+  - a torrent whose content holds more than the item;
+  - items whose client could not be read.
+- **Right before acting**, Scratcharr scans again and re-applies those rules.
+- **Restore** moves an item back unless something new sits at its old path.
+- **After `RecycleDays`**, items are deleted for good. Delete and Empty now do it sooner.
+- **Action log:** every change, and every refused one, goes into it.
+
+Once a week (Monday 9:00 by default) a summary goes to ntfy. It covers:
+- what needs a look, by verdict;
+- what is new this week;
+- what nothing will remove;
+- the recycle folder;
+- free space.
+
 ## Roadmap
 
 1. v0.1 Find (read-only)
 2. v0.2 Unpack: `.rar`/`.7z`/`.zip` sets into `/downloads/discs/<name>/` for Ripparr, the torrent keeps seeding
-3. v0.3 From USB: browse `/mnt/pc/usbxx`, copy into `/downloads/import` or `/downloads/discs`, checked after — this version
-4. v0.4 Clean up: recycle to `/downloads/.recycle` (7 days), remove through qBittorrent and SABnzbd
+3. v0.3 From USB: browse `/mnt/pc/usbxx`, copy into `/downloads/import` or `/downloads/discs`, checked after
+4. v0.4 Clean up: recycle to `/downloads/.recycle` (7 days), remove through qBittorrent and SABnzbd, weekly ntfy summary — this version
 
 ## Development
 
