@@ -96,7 +96,9 @@ public class ScratcharrOptions
         new() { Name = "Discs", Path = "discs", Kind = FolderKind.Manual }
     ];
 
-    public static readonly string[] DefaultProtected = ["ripparr", ".recycle"];
+    /// <summary>Other apps' folders in /downloads: Ripparr's work and done folders, the disc rips (Spinarr's albums wait
+    /// there for Lidarr), and the recycle bin.</summary>
+    public static readonly string[] DefaultProtected = ["ripparr", "rips", ".recycle"];
 
     public static readonly string[] DefaultCategoryFolders = ["radarr", "sonarr", "lidarr", "books", "manual", "prowlarr"];
 

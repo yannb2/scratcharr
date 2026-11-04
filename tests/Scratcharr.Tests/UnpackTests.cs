@@ -205,7 +205,7 @@ public sealed class UnpackTests
         var options = Options();
         var store = new Store(Path.Combine(_root, "test.db"));
         var live = new LiveSettings(MsOptions.Create(options), store);
-        var scans = new ScanService(MsOptions.Create(options), store,
+        var scans = new ScanService(MsOptions.Create(options), store, live,
             new QbittorrentClient(live, NullLogger<QbittorrentClient>.Instance),
             new SabnzbdClient(live, NullLogger<SabnzbdClient>.Instance),
             new ArrClient(live, NullLogger<ArrClient>.Instance),

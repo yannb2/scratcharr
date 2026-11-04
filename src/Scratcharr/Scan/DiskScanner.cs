@@ -54,8 +54,11 @@ public static class DiskScanner
     };
 
     /// <param name="categories">Folder names that hold one item per entry (radarr, sonarr, manual, the clients' categories).</param>
-    public static List<DiskItem> Scan(ScratcharrOptions options, IReadOnlySet<string> categories, CancellationToken cancellationToken)
+    /// <param name="protectedFolders">The protected folders in force (Settings page or environment); null = the options' own.</param>
+    public static List<DiskItem> Scan(ScratcharrOptions options, IReadOnlySet<string> categories, CancellationToken cancellationToken,
+        IReadOnlyList<string>? protectedFolders = null)
     {
+        var shield = protectedFolders ?? options.Protected;
         var items = new List<DiskItem>();
         var watched = options.Folders.Select(f => f.Path).ToList();
         foreach (var folder in options.Folders)
@@ -80,12 +83,12 @@ public static class DiskScanner
                     foreach (var inner in Entries(entry.FullName))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        items.Add(Measure(inner, folder.Name, folder.Kind, entry.Name, options));
+                        items.Add(Measure(inner, folder.Name, folder.Kind, entry.Name, options, shield));
                     }
                 }
                 else
                 {
-                    items.Add(Measure(entry, folder.Name, folder.Kind, "", options));
+                    items.Add(Measure(entry, folder.Name, folder.Kind, "", options, shield));
                 }
             }
         }
@@ -102,7 +105,7 @@ public static class DiskScanner
                     continue;
                 }
 
-                items.Add(Measure(entry, "Downloads", FolderKind.Manual, "", options));
+                items.Add(Measure(entry, "Downloads", FolderKind.Manual, "", options, shield));
             }
         }
 
@@ -126,11 +129,12 @@ public static class DiskScanner
         }
     }
 
-    internal static DiskItem Measure(FileSystemInfo entry, string folder, FolderKind kind, string category, ScratcharrOptions options)
+    internal static DiskItem Measure(FileSystemInfo entry, string folder, FolderKind kind, string category, ScratcharrOptions options,
+        IReadOnlyList<string> protectedFolders)
     {
         var path = Paths.Clean(entry.FullName);
         // A folder 7-Zip is still filling (Unpack), or a copy from USB, is Scratcharr's own work in progress.
-        var isProtected = options.Protected.Any(p => Paths.IsUnder(path, p) || path == p)
+        var isProtected = protectedFolders.Any(p => Paths.IsUnder(path, p) || path == p)
                           || entry.Name.EndsWith(Jobs.UnpackPlan.PartialSuffix, StringComparison.Ordinal)
                           || entry.Name.EndsWith(Usb.CopyPlan.PartialSuffix, StringComparison.Ordinal)
                           || entry.Name == System.IO.Path.GetFileName(options.RecycleFolder);

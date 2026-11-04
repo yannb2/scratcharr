@@ -1,5 +1,6 @@
 @inject ScanService Scans
 @inject IOptions<ScratcharrOptions> Options
+@inject LiveSettings Live
 @using Microsoft.Extensions.Options
 
 <div class="d-flex align-items-start flex-wrap gap-2 mb-3">
@@ -126,7 +127,7 @@ else
                 }
                 <tr class="text-body-secondary">
                     <td>Protected</td>
-                    <td class="sv-path small" colspan="4">@string.Join(", ", Options.Value.Protected)</td>
+                    <td class="sv-path small" colspan="4">@string.Join(", ", Live.Protected) <a class="ms-1" href="settings/protected">Manage</a></td>
                 </tr>
                 </tbody>
             </table>

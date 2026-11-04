@@ -15,7 +15,7 @@ the external disks and shares are only read, and nothing is deleted before 7 day
 | Page | |
 | --- | --- |
 | Overview | Space used and free, totals per verdict, the biggest items to review, what leaves in the next 24 h, every folder |
-| Downloads | Every item with its verdict, client state, arr app, seeding time (of its limit), size, age and when it leaves. Filters live in the URL. Tick items and Recycle them |
+| Downloads | Every item with its verdict, client state, arr app, seeding time (of its limit), size, age and when it leaves. Every column sorts both ways (click it again to turn it around). Filters and sorting live in the URL. Tick items and Recycle them |
 | Item | The evidence: torrent, SABnzbd job, arr queue and history, the largest files |
 | Unpack | Every archive set (`.partNN.rar`, `.rar` + `.r00`, `.7z`, `.7z.001`, `.zip`) per item: parts, size, Look inside (7-Zip's listing: ISOs, BDMV, videos, unpacked size), a folder name, Unpack |
 | External | The USB disks and mounted shares in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Anything that can't be read (Windows' System Volume Information...) is listed in red: click it for the error. Tick, pick Auto / import / discs, Copy |
@@ -23,7 +23,7 @@ the external disks and shares are only read, and nothing is deleted before 7 day
 | Jobs | Unpacks and copies one at a time with a progress bar, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
 | Logs | The last 2000 lines since the app started, newest first, with search and a level filter (shared arrkit code) |
 | Tools | 7-Zip's version, its pin and the newest release |
-| Settings | Integrations: connections (saved in the database, they win over the environment variables). Settings check: per download client category, its folder, which arr app uses it, who removes finished downloads, with warnings about gaps (the count shows on the tab and next to Settings in the menu). Status: the running values |
+| Settings | Integrations: connections (saved in the database, they win over the environment variables). Protected folders: add or remove the folders Scratcharr never touches (saved in the database, they win over `Protected__N`). Settings check: per download client category, its folder, which arr app uses it, who removes finished downloads, with warnings about gaps (the count shows on the tab and next to Settings in the menu). Status: the running values |
 
 An **item** is one entry of a watched folder: a torrent's folder or file, a usenet job folder, something copied
 by hand. Category folders (`radarr`, `sonarr`, `manual`, `prowlarr`, and every category qBittorrent or SABnzbd reports)
@@ -42,7 +42,7 @@ are opened, so each torrent is its own item. Loose entries at the top of `/downl
 | Half-finished | `.!qB` files that no torrent owns |
 | Stray | Nothing claims it at all |
 | Can't tell | The client that would know (qBittorrent for torrents, SABnzbd for usenet) could not be read |
-| Protected | Ripparr's folders and the recycle bin: never touched |
+| Protected | Ripparr's folders, the disc rips (`rips`, Spinarr's albums for Lidarr) and the recycle bin: never touched |
 
 Matching uses paths (qBittorrent's content path, SABnzbd's storage folder, the arr queue's output path and
 history's dropped path) and download IDs (torrent hash, SABnzbd nzo id). All apps must see the downloads at
@@ -60,7 +60,7 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | --- | --- | --- |
 | `DownloadsRoot` | `/downloads` | Only items under it are listed |
 | `Folders__N__Name/Path/Kind` | torrents, usenet/complete, usenet/incomplete, import, discs | Watched folders; `Kind` = Torrents, Usenet, UsenetIncomplete or Manual; paths relative to the root |
-| `Protected__N` | `ripparr`, `.recycle` | Never judged or touched |
+| `Protected__N` | `ripparr`, `rips`, `.recycle` | Never judged or touched |
 | `CategoryFolders__N` | radarr, sonarr, lidarr, books, manual, prowlarr | Opened even when no client has the category yet |
 | `ScanMinutes` | 15 | Minutes between scans (Scan now starts one at any time) |
 | `AllowChanges` | false | Off: read-only. On: Unpack and External copies work (mount `/downloads` read-write) |

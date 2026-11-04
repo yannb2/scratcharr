@@ -1,0 +1,137 @@
+@implements IDisposable
+@inject LiveSettings Live
+@inject ScanService Scans
+@inject Toasts Toasts
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+
+<p class="text-body-secondary">
+    Folders in <code>@O.DownloadsRoot</code> that belong to other apps: Scratcharr lists what is in them as
+    <em>Protected</em>, never judges it and never recycles it. The list saved here wins over
+    <code>Scratcharr__Protected__N</code>. A new scan starts after each change.
+</p>
+
+<div class="card mb-3">
+    <div class="card-header d-flex align-items-center gap-2">
+        <span class="fw-semibold me-auto"><i class="bi bi-shield-lock me-1"></i>Protected folders</span>
+        <span class="small text-body-secondary">@(Live.Saved(LiveSettings.ProtectedKey) ? "Saved here" : "From the environment / defaults")</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+            <tr><th>Folder</th><th>Full path</th><th class="text-end">Items</th><th class="text-end">Size</th><th></th></tr>
+            </thead>
+            <tbody>
+            @foreach (var path in Live.Protected)
+            {
+                var items = Scans.Last?.Items.Where(i => i.Item.Protected && Under(i.Item.Path, path)).ToList() ?? [];
+                <tr>
+                    <td class="fw-semibold">@Rel(path)</td>
+                    <td class="sv-path small">@path</td>
+                    <td class="text-end">
+                        @if (Directory.Exists(path))
+                        {
+                            @items.Count
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">missing</span>
+                        }
+                    </td>
+                    <td class="text-end text-nowrap">@Format.Size(items.Sum(i => i.Item.Size))</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-danger" title="Stop protecting @Rel(path)" @onclick="() => Remove(path)">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </td>
+                </tr>
+            }
+            @if (Live.Protected.Count == 0)
+            {
+                <tr><td colspan="5" class="text-body-secondary">Nothing is protected.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="card-body border-top">
+        <form class="d-flex flex-wrap gap-2" @onsubmit="Add" @onsubmit:preventDefault="true">
+            <div class="input-group input-group-sm" style="max-width: 32rem">
+                <span class="input-group-text sv-path">@(O.DownloadsRoot)/</span>
+                <input class="form-control" placeholder="rips" aria-label="Folder to protect" @bind="_new" @bind:event="oninput"/>
+                <button class="btn btn-primary" type="submit" disabled="@string.IsNullOrWhiteSpace(_new)"><i class="bi bi-plus-lg me-1"></i>Protect</button>
+            </div>
+            @if (Live.Saved(LiveSettings.ProtectedKey))
+            {
+                <button class="btn btn-sm btn-outline-secondary ms-auto" type="button" @onclick="Reset"
+                        title="@string.Join(", ", Live.StartingProtected.Select(Rel))">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Back to the environment / defaults
+                </button>
+            }
+        </form>
+        @if (_problem != null)
+        {
+            <div class="small text-danger mt-2">@_problem</div>
+        }
+        <div class="small text-body-secondary mt-2">
+            A folder name or path under the downloads folder: <code>rips</code>, <code>torrents/keep</code>. Everything inside it is protected.
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? _new;
+    private string? _problem;
+
+    private ScratcharrOptions O => Options.Value;
+
+    protected override void OnInitialized()
+    {
+        Scans.Changed += OnChanged;
+        Live.Changed += OnChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private static bool Under(string path, string folder) => path == folder || Paths.IsUnder(path, folder);
+
+    private string Rel(string path) => Paths.IsUnder(path, O.DownloadsRoot) ? path[(O.DownloadsRoot.Length + 1)..] : path;
+
+    private void Add()
+    {
+        _problem = ProtectedFolders.Problem(O, _new, Live.Protected, out var path);
+        if (_problem != null)
+        {
+            return;
+        }
+
+        Save([.. Live.Protected, path!]);
+        Toasts.Success($"{Rel(path!)} is protected. Scanning again.");
+        _new = null;
+    }
+
+    private void Remove(string path)
+    {
+        Save(Live.Protected.Where(p => p != path).ToList());
+        Toasts.Show($"{Rel(path)} is no longer protected. Scanning again.", "info");
+    }
+
+    private void Reset()
+    {
+        Live.Reset(LiveSettings.ProtectedKey);
+        Scans.ScanNow();
+        Toasts.Show("The protected folders come from the environment / defaults again.", "info");
+    }
+
+    private void Save(List<string> folders)
+    {
+        _problem = null;
+        Live.Save(LiveSettings.ProtectedKey, folders);
+        Scans.ScanNow();
+    }
+
+    public void Dispose()
+    {
+        Scans.Changed -= OnChanged;
+        Live.Changed -= OnChanged;
+    }
+}

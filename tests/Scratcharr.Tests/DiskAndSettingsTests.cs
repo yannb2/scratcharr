@@ -49,6 +49,7 @@ public sealed class DiskAndSettingsTests
         File("usenet/incomplete/Job/part.rar");
         File("import/home.mkv");
         File("ripparr/work/job-1/stream.hevc");
+        File("rips/music/Artist - Album (2001)/01.flac");
         File("film.iso");
 
         var items = DiskScanner.Scan(Options(), new HashSet<string> { "radarr" }, CancellationToken.None);
@@ -57,6 +58,7 @@ public sealed class DiskAndSettingsTests
         {
             "Downloads::film.iso",
             "Downloads::ripparr",
+            "Downloads::rips",
             "Import::home.mkv",
             "Torrents::Something",
             "Torrents::loose.iso",
@@ -70,8 +72,43 @@ public sealed class DiskAndSettingsTests
         Assert.AreEqual(100, movie.Size);
         Assert.AreEqual(1, movie.Videos);
         Assert.IsTrue(items.Single(i => i.Name == "ripparr").Protected);
+        Assert.IsTrue(items.Single(i => i.Name == "rips").Protected);
         Assert.AreEqual(1, items.Single(i => i.Name == "film.iso").Discs);
         Assert.AreEqual(1, items.Single(i => i.Name == "Job").Archives);
+    }
+
+    [TestMethod]
+    public void Protected_folders_saved_on_the_settings_page_win_and_reset_brings_the_defaults_back()
+    {
+        var options = Options();
+        options.DatabasePath = Path.Combine(_root, "protected.db");
+        var live = new LiveSettings(Microsoft.Extensions.Options.Options.Create(options), new Store(options.DatabasePath));
+        Assert.AreEqual(Path.Combine(_root, "rips"), live.Protected[1]);
+
+        File("keep/thing.mkv");
+        File("rips/music/a.flac");
+        live.Save(LiveSettings.ProtectedKey, new List<string> { Path.Combine(_root, "keep") });
+        var items = DiskScanner.Scan(options, new HashSet<string>(), CancellationToken.None, live.Protected);
+        Assert.IsTrue(items.Single(i => i.Name == "keep").Protected);
+        Assert.IsFalse(items.Single(i => i.Name == "rips").Protected);
+
+        live.Reset(LiveSettings.ProtectedKey);
+        CollectionAssert.AreEqual(options.Protected, live.Protected.ToList());
+    }
+
+    [TestMethod]
+    public void Only_new_folders_under_downloads_can_be_protected()
+    {
+        var options = Options();
+        IReadOnlyList<string> current = [Path.Combine(_root, "ripparr")];
+        Assert.IsNull(ProtectedFolders.Problem(options, " torrents/keep/ ", current, out var path));
+        Assert.AreEqual(Path.Combine(_root, "torrents", "keep"), path);
+        Assert.IsNull(ProtectedFolders.Problem(options, Path.Combine(_root, "rips"), current, out _));
+        Assert.IsNotNull(ProtectedFolders.Problem(options, "", current, out _));
+        Assert.IsNotNull(ProtectedFolders.Problem(options, "../etc", current, out _));
+        Assert.IsNotNull(ProtectedFolders.Problem(options, "/etc", current, out _));
+        Assert.IsNotNull(ProtectedFolders.Problem(options, _root, current, out _));
+        Assert.IsNotNull(ProtectedFolders.Problem(options, "ripparr/work", current, out _), "inside a protected folder already");
     }
 
     [TestMethod]

@@ -142,16 +142,27 @@ public sealed class LiveSettings(IOptions<ScratcharrOptions> options, Store stor
     public const string RadarrKey = "integrations.radarr";
     public const string SonarrKey = "integrations.sonarr";
     public const string LidarrKey = "integrations.lidarr";
+    public const string ProtectedKey = "protected.folders";
 
-    public QbittorrentOptions Qbittorrent => Read(QbittorrentKey, options.Value.Qbittorrent);
+    public QbittorrentOptions Qbittorrent => Read(QbittorrentKey, options.Value.Qbittorrent)!;
 
-    public SabnzbdOptions Sabnzbd => Read(SabnzbdKey, options.Value.Sabnzbd);
+    public SabnzbdOptions Sabnzbd => Read(SabnzbdKey, options.Value.Sabnzbd)!;
 
-    public ArrOptions Radarr => Read(RadarrKey, options.Value.Radarr);
+    public ArrOptions Radarr => Read(RadarrKey, options.Value.Radarr)!;
 
-    public ArrOptions Sonarr => Read(SonarrKey, options.Value.Sonarr);
+    public ArrOptions Sonarr => Read(SonarrKey, options.Value.Sonarr)!;
 
-    public ArrOptions Lidarr => Read(LidarrKey, options.Value.Lidarr);
+    public ArrOptions Lidarr => Read(LidarrKey, options.Value.Lidarr)!;
+
+    /// <summary>
+    /// The protected folders, full paths: the list saved on the Settings page, else Scratcharr__Protected__N, else the
+    /// defaults (ripparr, rips, .recycle).
+    /// </summary>
+    public IReadOnlyList<string> Protected => Read<List<string>>(ProtectedKey, null)?.Select(options.Value.Absolute).ToList()
+                                              ?? options.Value.Protected;
+
+    /// <summary>The protected folders from the environment (or the defaults), which Reset brings back.</summary>
+    public IReadOnlyList<string> StartingProtected => options.Value.Protected;
 
     public event Action? Changed;
 
@@ -171,7 +182,7 @@ public sealed class LiveSettings(IOptions<ScratcharrOptions> options, Store stor
         Changed?.Invoke();
     }
 
-    private T Read<T>(string key, T fallback) where T : class
+    private T? Read<T>(string key, T? fallback) where T : class
     {
         var json = store.Setting(key);
         if (json == null)
