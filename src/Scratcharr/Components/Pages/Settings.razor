@@ -1,5 +1,9 @@
 @page "/settings"
 @page "/settings/{Tab}"
+@page "/check"
+@implements IDisposable
+@inject ScanService Scans
+@inject NavigationManager Nav
 
 <PageTitle>Settings · Scratcharr</PageTitle>
 
@@ -11,12 +15,20 @@
         <li class="nav-item">
             <a class="nav-link @(_tab == key ? "active" : "")" href="settings/@key">
                 <i class="bi @icon me-1"></i>@label
+                @if (key == "check" && _warnings > 0)
+                {
+                    <span class="badge text-bg-warning ms-1">@_warnings</span>
+                }
             </a>
         </li>
     }
 </ul>
 
-@if (_tab == "status")
+@if (_tab == "check")
+{
+    <CheckTab/>
+}
+else if (_tab == "status")
 {
     <StatusTab/>
 }
@@ -33,9 +45,31 @@ else
     public static readonly (string Key, string Label, string Icon)[] Tabs =
     [
         ("integrations", "Integrations", "bi-plug"),
+        ("check", "Settings check", "bi-clipboard-check"),
         ("status", "Status", "bi-info-circle")
     ];
 
+    private int _warnings;
+
+    protected override void OnInitialized()
+    {
+        Scans.Changed += OnScanned;
+        Count();
+    }
+
+    // The old /check address (bookmarks) opens the Settings check tab.
     protected override void OnParametersSet() =>
-        _tab = Tabs.Any(t => t.Key == Tab) ? Tab! : "integrations";
+        _tab = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0] == "check" ? "check"
+            : Tabs.Any(t => t.Key == Tab) ? Tab! : "integrations";
+
+    private void Count() =>
+        _warnings = Scans.Last?.Settings.Findings.Count(f => f.Severity == Severity.Warning) ?? 0;
+
+    private void OnScanned() => InvokeAsync(() =>
+    {
+        Count();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Scans.Changed -= OnScanned;
 }
