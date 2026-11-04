@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <base href="/"/>
+    @* Applied before the page draws, so a light-mode user never sees a dark flash. *@
+    <script>
+        window.scratcharrTheme = {
+            get: function () {
+                try { return localStorage.getItem("scratcharr-theme") || "dark"; } catch (e) { return "dark"; }
+            },
+            apply: function (theme) { document.documentElement.setAttribute("data-bs-theme", theme); },
+            toggle: function () {
+                var next = this.get() === "dark" ? "light" : "dark";
+                try { localStorage.setItem("scratcharr-theme", next); } catch (e) { }
+                this.apply(next);
+            }
+        };
+        scratcharrTheme.apply(scratcharrTheme.get());
+        window.scratcharrScrollToEnd = function (id) {
+            var element = document.getElementById(id);
+            if (element) { element.scrollTop = element.scrollHeight; }
+        };
+    </script>
+    <link rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="lib/bootstrap-icons/font/bootstrap-icons.min.css"/>
+    <link rel="stylesheet" href="@Assets["app.css"]"/>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+    <HeadOutlet @rendermode="InteractiveServer"/>
+</head>
+
+<body>
+<Routes @rendermode="InteractiveServer"/>
+<div id="components-reconnect-modal">
+    Connection lost, reconnecting..
+</div>
+<script src="_framework/blazor.web.js"></script>
+<script>
+    // When the server restarts the old connection is rejected; reload instead of leaving a dead page.
+    (function () {
+        const modal = document.getElementById("components-reconnect-modal");
+        modal.addEventListener("components-reconnect-state-changed", function (event) {
+            if (event.detail.state === "rejected") {
+                location.reload();
+            }
+        });
+    })();
+</script>
+<script src="lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

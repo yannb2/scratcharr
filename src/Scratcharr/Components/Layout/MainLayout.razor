@@ -1,0 +1,36 @@
+@inherits LayoutComponentBase
+
+<div class="sv-page-wrapper">
+    <div class="sv-mobile-header d-md-none">
+        <button class="btn btn-link text-light p-2" @onclick="() => _mobileOpen = !_mobileOpen" aria-label="Menu">
+            <i class="bi bi-list fs-4"></i>
+        </button>
+        <div class="d-flex align-items-center gap-2 mx-auto">
+            <img src="favicon.svg" alt="" class="sv-logo"/>
+            <span class="text-light fw-semibold">Scratcharr</span>
+        </div>
+    </div>
+
+    <NavMenu MobileOpen="_mobileOpen" MobileOpenChanged="v => _mobileOpen = v"/>
+
+    <main class="sv-main-content">
+        <div class="container-fluid">
+            @Body
+        </div>
+    </main>
+</div>
+
+<ToastHost/>
+
+<div id="blazor-error-ui" class="sv-error-ui">
+    <div class="alert alert-warning m-0 rounded-0">
+        <div class="container-fluid d-flex align-items-center">
+            <div class="flex-grow-1">Something went wrong.</div>
+            <a href="" class="btn btn-warning btn-sm mx-2 reload">Reload</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _mobileOpen;
+}

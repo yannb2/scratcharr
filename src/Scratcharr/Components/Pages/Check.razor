@@ -1,0 +1,153 @@
+@page "/check"
+@inject ScanService Scans
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+
+<PageTitle>Settings check · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center flex-wrap gap-2 border-bottom pb-3 mb-3">
+    <h2 class="mb-0 me-auto"><i class="bi bi-clipboard-check me-2"></i>Settings check</h2>
+    <ScanButton Scanned="StateHasChanged"/>
+</div>
+
+<p class="text-body-secondary">
+    What removes what in <code>@Options.Value.DownloadsRoot</code>, read from qBittorrent, SABnzbd and the arr apps'
+    download clients. Nothing here is changed: fix a gap in the app it belongs to, then scan again.
+</p>
+
+@if (Scans.Last is not { } scan)
+{
+    <div class="text-body-secondary"><span class="spinner-border spinner-border-sm me-2"></span>First scan…</div>
+}
+else
+{
+    var report = scan.Settings;
+    @if (report.Findings.Count > 0)
+    {
+        <div class="mb-3">
+            @foreach (var finding in report.Findings)
+            {
+                <div class="alert @(finding.Severity == Severity.Warning ? "alert-warning" : "alert-secondary") py-2 mb-2 d-flex gap-2">
+                    <i class="bi @(finding.Severity == Severity.Warning ? "bi-exclamation-triangle" : "bi-info-circle")"></i>
+                    <span>@finding.Text</span>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="card mb-3">
+        <div class="card-header fw-semibold">Download client categories</div>
+        <div class="card-body py-2 small text-body-secondary">
+            @if (scan.Evidence.Qbittorrent.Ok)
+            {
+                <div>qBittorrent: @report.SeedingLimits</div>
+            }
+            @if (scan.Evidence.Sabnzbd.Ok)
+            {
+                <div>SABnzbd: @report.SabRetention</div>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                <tr><th>Client</th><th>Category</th><th>Folder</th><th>Used by</th><th>Removed by</th><th class="text-end">Jobs</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var row in report.Categories)
+                {
+                    <tr>
+                        <td>@row.Client</td>
+                        <td class="fw-semibold">@row.Category</td>
+                        <td class="sv-path small">@row.Folder</td>
+                        <td>@(row.UsedBy.Length > 0 ? row.UsedBy : "-")</td>
+                        <td class="@(row.Nobody ? "text-warning" : "")">@row.RemovedBy</td>
+                        <td class="text-end">@row.Items</td>
+                    </tr>
+                }
+                @if (report.Categories.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-body-secondary">qBittorrent and SABnzbd could not be read.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header fw-semibold">Arr download clients</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                <tr><th>App</th><th>Client</th><th>Type</th><th>Category</th><th>Remove Completed</th><th>Remove Failed</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var row in report.ArrClients)
+                {
+                    <tr class="@(row.Client.Enabled ? "" : "text-body-secondary")">
+                        <td>@row.App</td>
+                        <td>@row.Client.Name @(row.Client.Enabled ? "" : "(off)")</td>
+                        <td>@row.Client.Implementation</td>
+                        <td>@row.Client.Category</td>
+                        <td>@YesNo(row.Client.RemoveCompleted)</td>
+                        <td>@YesNo(row.Client.RemoveFailed)</td>
+                    </tr>
+                }
+                @if (report.ArrClients.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-body-secondary">No arr app could be read.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header fw-semibold">Watched folders</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                <tr><th>Folder</th><th>Path</th><th>Kind</th><th class="text-end">Items</th><th class="text-end">Size</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var folder in Options.Value.Folders)
+                {
+                    var items = scan.Items.Where(i => i.Item.Folder == folder.Name).ToList();
+                    <tr>
+                        <td>@folder.Name</td>
+                        <td class="sv-path small">@folder.Path</td>
+                        <td>@KindWords(folder.Kind)</td>
+                        <td class="text-end">
+                            @if (Directory.Exists(folder.Path))
+                            {
+                                @items.Count
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-secondary">missing</span>
+                            }
+                        </td>
+                        <td class="text-end">@Format.Size(items.Sum(i => i.Item.Size))</td>
+                    </tr>
+                }
+                <tr class="text-body-secondary">
+                    <td>Protected</td>
+                    <td class="sv-path small" colspan="4">@string.Join(", ", Options.Value.Protected)</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private static MarkupString YesNo(bool value) =>
+        new(value ? "<i class=\"bi bi-check-circle text-success\"></i> on" : "<i class=\"bi bi-dash-circle text-body-secondary\"></i> off");
+
+    private static string KindWords(FolderKind kind) => kind switch
+    {
+        FolderKind.Torrents => "qBittorrent",
+        FolderKind.Usenet => "SABnzbd, complete",
+        FolderKind.UsenetIncomplete => "SABnzbd, temporary",
+        _ => "Filled by hand"
+    };
+}

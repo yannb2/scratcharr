@@ -1,0 +1,41 @@
+@page "/settings"
+@page "/settings/{Tab}"
+
+<PageTitle>Settings · Scratcharr</PageTitle>
+
+<h2 class="border-bottom pb-3 mb-3"><i class="bi bi-gear me-2"></i>Settings</h2>
+
+<ul class="nav nav-tabs mb-3">
+    @foreach (var (key, label, icon) in Tabs)
+    {
+        <li class="nav-item">
+            <a class="nav-link @(_tab == key ? "active" : "")" href="settings/@key">
+                <i class="bi @icon me-1"></i>@label
+            </a>
+        </li>
+    }
+</ul>
+
+@if (_tab == "status")
+{
+    <StatusTab/>
+}
+else
+{
+    <IntegrationsTab/>
+}
+
+@code {
+    [Parameter] public string? Tab { get; set; }
+
+    private string _tab = "integrations";
+
+    public static readonly (string Key, string Label, string Icon)[] Tabs =
+    [
+        ("integrations", "Integrations", "bi-plug"),
+        ("status", "Status", "bi-info-circle")
+    ];
+
+    protected override void OnParametersSet() =>
+        _tab = Tabs.Any(t => t.Key == Tab) ? Tab! : "integrations";
+}

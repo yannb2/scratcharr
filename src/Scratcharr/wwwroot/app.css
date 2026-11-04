@@ -1,0 +1,956 @@
+/* Layout and theme adapted from Muxarr (github.com/KirovAir/muxarr, GPLv3), so the two apps look alike. */
+
+:root {
+    --sv-sidebar-width: 224px;
+    --sv-sidebar-width-collapsed: 64px;
+    --sv-header-height: 56px;
+    --sv-navy: #0d0d1a;
+    --sv-navy-light: #1e1e32;
+    --sv-surface: #232338;
+    --sv-border: rgba(255, 255, 255, 0.06);
+}
+
+/* ---- Layout ---- */
+
+.sv-page-wrapper {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Mobile Header ---- */
+
+.sv-mobile-header {
+    height: var(--sv-header-height);
+    background: var(--sv-navy);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+}
+
+/* ---- Main Content ---- */
+
+.sv-main-content {
+    flex: 1;
+    min-width: 0;
+    padding: 1.5rem;
+}
+
+/* ---- Sidebar ---- */
+
+.sv-sidebar {
+    background: var(--sv-navy);
+    background-image: none;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1040;
+    border-right: 1px solid var(--sv-border);
+}
+
+.sv-sidebar-header {
+    height: var(--sv-header-height);
+    padding: 0 1.125rem;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--sv-border);
+    flex-shrink: 0;
+}
+
+.sv-logo {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.sv-logo-text {
+    font-size: 0.9375rem;
+    letter-spacing: 0.04em;
+}
+
+.sv-nav-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.75rem 0.625rem;
+}
+
+/* ---- Sidebar Footer ---- */
+
+.sv-sidebar-footer {
+    padding: 0.5rem;
+    border-top: 1px solid var(--sv-border);
+    flex-shrink: 0;
+}
+
+.sv-footer-meta {
+    padding: 0.375rem 0.875rem 0;
+}
+
+.sv-sidebar.collapsed .sv-footer-meta {
+    justify-content: center;
+    padding: 0.375rem 0.875rem 0;
+}
+
+.sv-footer-btn {
+    opacity: 0.5;
+    font-size: 1.125rem;
+    transition: opacity 0.15s ease;
+}
+
+.sv-footer-btn:hover {
+    opacity: 1;
+}
+
+.sv-version {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.sv-sidebar.collapsed .sv-version {
+    display: none;
+}
+
+.sv-sidebar.collapsed .sv-sidebar-footer {
+    padding: 0.5rem;
+}
+
+/* ---- Theme Icon ---- */
+
+.sv-theme-icon {
+    transition: transform 0.4s ease, color 0.3s ease;
+}
+
+.sv-theme-icon.light {
+    color: #f5c542 !important;
+}
+
+.sv-sidebar .nav-link:hover .sv-theme-icon {
+    transform: rotate(25deg);
+}
+
+/* ---- Nav Links ---- */
+
+.sv-sidebar .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+    padding: 0.6rem 0.875rem;
+    border-radius: 8px;
+    transition: color 0.15s ease, background 0.15s ease;
+    margin-bottom: 2px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    position: relative;
+}
+
+.sv-sidebar .nav-link i {
+    font-size: 1.125rem;
+    flex-shrink: 0;
+    width: 1.25rem;
+    text-align: center;
+    transition: transform 0.15s ease;
+}
+
+.sv-sidebar .nav-link span {
+    white-space: nowrap;
+}
+
+.sv-sidebar .nav-link:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.sv-sidebar .nav-link.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* ---- Desktop ---- */
+
+@media (min-width: 768px) {
+    .sv-page-wrapper {
+        flex-direction: row;
+    }
+
+    .sv-sidebar {
+        width: var(--sv-sidebar-width);
+        height: 100vh;
+        position: sticky;
+        top: 0;
+    }
+
+    .sv-sidebar.collapsed {
+        width: var(--sv-sidebar-width-collapsed);
+    }
+
+    .sv-sidebar.collapsed .nav-link span,
+    .sv-sidebar.collapsed .sv-logo-text {
+        display: none;
+    }
+
+    .sv-sidebar.collapsed .sv-sidebar-header {
+        justify-content: center;
+    }
+
+    .sv-sidebar.collapsed .nav-link {
+        justify-content: center;
+        padding: 0.6rem;
+    }
+}
+
+/* ---- Mobile ---- */
+
+@media (max-width: 767.98px) {
+    .sv-main-content {
+        padding-top: 0.75rem;
+    }
+
+    .sv-sidebar {
+        position: fixed;
+        top: var(--sv-header-height);
+        bottom: 0;
+        left: 0;
+        width: var(--sv-sidebar-width);
+        transform: translateX(-100%);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sv-sidebar.sv-mobile-open {
+        transform: translateX(0);
+    }
+
+    /* Page action headers: allow wrapping so buttons don't overflow */
+    .sv-page-header {
+        flex-wrap: wrap !important;
+        gap: 0.5rem;
+    }
+
+    /* Filter rows: search bar takes full width, other items wrap below */
+    .sv-filter-row {
+        row-gap: 0.5rem !important;
+    }
+
+    .sv-filter-row > .col {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+/* ---- Phones: tighter spacing, card tables ---- */
+
+@media (max-width: 767.98px) {
+    /* Page, container and card padding stacked up to ~150px of a 390px screen. */
+    .sv-main-content {
+        padding: 0.75rem 0.75rem 1rem;
+    }
+
+    .sv-main-content .container-fluid {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .sv-main-content .card-body {
+        padding: 0.75rem;
+    }
+
+    .sv-main-content .p-4 {
+        padding: 1rem !important;
+    }
+
+    .sv-main-content h2 {
+        font-size: 1.5rem;
+    }
+
+    /* Logs and probe output wrap instead of scrolling sideways. */
+    .sv-main-content pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    /* Tab strips scroll sideways instead of wrapping onto several lines. */
+    .sv-main-content .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+
+    .sv-main-content .nav-tabs .nav-link {
+        white-space: nowrap;
+    }
+
+    .sv-tab-row {
+        flex-direction: row !important;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .sv-tab-row .nav-link {
+        flex: 1 1 auto;
+        padding: 0.5rem;
+        text-align: center !important;
+        white-space: nowrap;
+    }
+
+    .sv-tab-row .nav-link > i {
+        display: none;
+    }
+
+    .sv-sticky-bar .btn {
+        padding: 0.375rem 0.625rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+    }
+
+    /* Button-group filters share the full width instead of running off the edge. */
+    .sv-filter-row .btn-group {
+        width: 100%;
+    }
+
+    .sv-filter-row .btn-group > .btn {
+        flex: 1 1 auto;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+
+    /* Card tables: each row becomes a card, cells are full width unless .sv-cell-inline, data-label prefixes a cell. */
+    .sv-card-table,
+    .sv-card-table > tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .sv-card-table > thead {
+        display: block;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+
+    .sv-card-table > thead:not(:has(button, input)) {
+        display: none;
+    }
+
+    .sv-card-table > thead > tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem 1rem;
+        padding: 0.25rem 0.75rem;
+    }
+
+    .sv-card-table > thead > tr > th {
+        display: block;
+        width: auto !important;
+        padding: 0.25rem 0;
+        border: 0;
+    }
+
+    .sv-card-table > thead > tr > th:not(:has(button, input)) {
+        display: none;
+    }
+
+    .sv-card-table > tbody > tr {
+        position: relative;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem 0.75rem;
+        padding: 0.625rem 0.75rem;
+        border-bottom: 1px solid var(--bs-border-color);
+        background-color: var(--bs-table-bg);
+        box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg)));
+    }
+
+    .table-striped.sv-card-table > tbody > tr:nth-of-type(odd) {
+        --bs-table-bg-type: var(--bs-table-striped-bg);
+    }
+
+    .sv-card-table > tbody > tr > td {
+        flex: 1 0 100%;
+        min-width: 0;
+        max-width: 100% !important;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .sv-card-table > tbody > tr > td.sv-cell-inline {
+        flex: 0 0 auto;
+        font-size: 0.875rem;
+    }
+
+    .sv-card-table > tbody > tr > td.sv-cell-end {
+        flex: 0 0 auto;
+        margin-left: auto;
+    }
+
+    .sv-card-table > tbody > tr:has(> td.sv-cell-select) {
+        padding-left: 2.5rem;
+    }
+
+    .sv-card-table > tbody > tr > td.sv-cell-select {
+        position: absolute;
+        top: 0.625rem;
+        left: 0.75rem;
+        width: auto;
+    }
+
+    .sv-card-table > tbody > tr > td[data-label]::before {
+        content: attr(data-label);
+        margin-right: 0.375rem;
+        font-size: 0.75rem;
+        color: var(--bs-secondary-color);
+    }
+
+    /* Full-width labelled cells keep the label in a left column so wrapped content lines up. */
+    .sv-card-table > tbody > tr > td[data-label]:not(.sv-cell-inline) {
+        position: relative;
+        padding-left: 4.5rem;
+    }
+
+    .sv-card-table > tbody > tr > td[data-label]:not(.sv-cell-inline)::before {
+        position: absolute;
+        top: 0.125rem;
+        left: 0;
+    }
+
+    .sv-card-table .progress {
+        min-width: 6rem;
+    }
+
+    .sv-card-table > tbody > tr > td:empty {
+        display: none;
+    }
+
+    /* Track tables: number, language and format on one line, details below. */
+    .sv-track-table > thead {
+        display: none;
+    }
+
+    .sv-track-table,
+    .sv-track-table > tbody {
+        display: block;
+    }
+
+    .sv-track-table > tbody > tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.125rem 0.5rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+
+    .sv-track-table > tbody > tr > td {
+        padding: 0;
+        border: 0;
+    }
+
+    .sv-track-table > tbody > tr > td:nth-child(n+4) {
+        flex: 1 0 100%;
+        min-width: 0;
+        padding-left: 1.5rem;
+        overflow-wrap: anywhere;
+    }
+
+    .sv-track-table > tbody > tr > td:first-child {
+        min-width: 1rem;
+    }
+
+    .sv-track-table > tbody > tr > td:empty {
+        display: none;
+    }
+}
+
+.sv-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1035;
+}
+
+/* ---- Dark Theme — only what Bootstrap can't handle ---- */
+
+[data-bs-theme="dark"] {
+    --bs-body-color: rgba(255, 255, 255, 0.87);
+    --bs-heading-color: #fff;
+}
+
+[data-bs-theme="dark"] .sv-main-content {
+    background: #0d0d1a;
+}
+
+[data-bs-theme="dark"] .card {
+    background: var(--sv-navy-light);
+    border-color: var(--sv-border) !important;
+}
+
+[data-bs-theme="dark"] .card-header {
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom-color: var(--sv-border);
+}
+
+[data-bs-theme="dark"] .table {
+    --bs-table-bg: transparent;
+}
+
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+    background: var(--sv-surface);
+    border-color: var(--sv-border);
+}
+
+[data-bs-theme="dark"] .form-check-input {
+    background-color: var(--sv-surface);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-bs-theme="dark"] .form-check-input:checked {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+[data-bs-theme="dark"] .form-check-label,
+[data-bs-theme="dark"] .form-label,
+[data-bs-theme="dark"] label {
+    color: rgba(255, 255, 255, 0.87);
+}
+
+[data-bs-theme="dark"] .modal-content {
+    background: var(--sv-navy-light);
+    border-color: var(--sv-border);
+}
+
+
+/* Light theme sidebar stays dark */
+[data-bs-theme="light"] .sv-sidebar,
+[data-bs-theme="light"] .sv-mobile-header {
+    background: var(--sv-navy);
+}
+
+/* Buttons, links, badges, progress — all default Bootstrap blue */
+
+/* ---- Sidebar scrollbar ---- */
+
+.sv-nav-content::-webkit-scrollbar {
+    width: 3px;
+}
+
+.sv-nav-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sv-nav-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+}
+
+/* ---- Dashboard Stat Cards ---- */
+
+.sv-stat-card {
+    color: inherit;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.sv-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    color: inherit;
+}
+
+/* ---- Sticky Bar ---- */
+
+.sv-sticky-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 2rem;
+    padding: 0.75rem 0;
+    background: color-mix(in srgb, var(--bs-body-bg) 50%, transparent);
+    backdrop-filter: blur(4px);
+    border-top: 1px solid var(--bs-border-color);
+    z-index: 10;
+}
+
+[data-bs-theme="dark"] .sv-sticky-bar {
+    background: color-mix(in srgb, #0d0d1a 50%, transparent);
+    border-top-color: var(--sv-border);
+}
+
+/* ---- Error UI ---- */
+
+.sv-error-ui {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1050;
+    display: none;
+}
+
+/* ---- Tooltip (rendered at layout root via TooltipHost) ---- */
+
+.sv-tooltip {
+    position: fixed;
+    transform: translateX(-50%) translateY(-100%);
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    z-index: 999999;
+    pointer-events: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    width: max-content;
+    max-width: min(40ch, 90vw);
+    white-space: normal;
+    word-wrap: break-word;
+    animation: sv-tooltip-in 0.15s ease-out;
+}
+
+.sv-tooltip-below {
+    transform: translateX(-50%);
+}
+
+@keyframes sv-tooltip-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Blazor's reconnect banner. Hidden until the circuit drops. */
+#components-reconnect-modal {
+    display: none;
+}
+
+#components-reconnect-modal.components-reconnect-show,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-rejected {
+    display: block;
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10001;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.5rem;
+    background-color: #212529;
+    color: #fff;
+    border: 1px solid rgb(255 255 255 / 15%);
+    box-shadow: 0 3px 6px 2px rgb(0 0 0 / 30%);
+}
+
+/* ============================================
+   Specarr
+   ============================================ */
+
+.sv-clickable-row {
+    cursor: pointer;
+}
+
+.sv-file-name {
+    overflow-wrap: anywhere;
+}
+
+.sv-path {
+    font-family: var(--bs-font-monospace);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+}
+
+/* A row whose two sides are not the same. */
+.sv-compare-table > tbody > tr.sv-diff > td {
+    background-color: rgba(var(--bs-warning-rgb), 0.12);
+}
+
+.sv-compare-table > tbody > tr.sv-diff > td:first-child {
+    box-shadow: inset 3px 0 0 var(--bs-warning);
+}
+
+.sv-compare-table > thead > tr > th:not(:first-child),
+.sv-compare-table > tbody > tr > td:not(:first-child) {
+    width: 42%;
+    overflow-wrap: anywhere;
+}
+
+.sv-compare-table > tbody > tr > td:first-child {
+    white-space: nowrap;
+    color: var(--bs-secondary-color);
+}
+
+.sv-missing {
+    color: var(--bs-secondary-color);
+    font-style: italic;
+}
+
+.sv-raw {
+    max-height: 70vh;
+    overflow: auto;
+    font-size: 0.8125rem;
+    background: var(--bs-tertiary-bg);
+    padding: 1rem;
+    border-radius: 0.375rem;
+}
+
+.sv-section-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+@media (max-width: 767.98px) {
+    .sv-compare-table > tbody > tr > td:first-child {
+        white-space: normal;
+    }
+}
+
+/* FocusOnNavigate puts focus on the heading for screen readers; no outline needed. */
+h2:focus {
+    outline: none;
+}
+
+/* Connection light in the sidebar footer. */
+.sv-connection {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.6875rem;
+}
+
+.sv-connection i {
+    font-size: 0.5rem;
+    vertical-align: middle;
+}
+
+.sv-connection.live i {
+    color: var(--bs-success);
+}
+
+.sv-sidebar.collapsed .sv-connection-text {
+    display: none;
+}
+
+/* dovi_tool values that span several lines (L2 and L8 trims). */
+.sv-multiline {
+    white-space: pre-line;
+}
+
+/* ---- Specarr: spec badges ---- */
+
+.sv-badge-muted {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    font-weight: 500;
+}
+
+.sv-res {
+    background-color: #5a6b7d;
+    color: #fff;
+}
+
+.sv-res-2160p {
+    background-color: #7b4fd6;
+}
+
+.sv-res-1080p {
+    background-color: #2d6cdf;
+}
+
+.sv-res-720p {
+    background-color: #2a8f9d;
+}
+
+.sv-hdr {
+    background-color: #c98a12;
+    color: #fff;
+}
+
+.sv-dv {
+    background: linear-gradient(90deg, #9b2fae, #c98a12);
+    color: #fff;
+}
+
+.sv-audio {
+    background-color: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-weight: 500;
+}
+
+/* Source badges: disc sources warm, streaming cool, TV grey. Faded when the guess is unsure. */
+.sv-source {
+    color: #fff;
+}
+
+.sv-source-bdremux {
+    background-color: #1f8a4c;
+}
+
+.sv-source-bdrip {
+    background-color: #5c9a3a;
+}
+
+.sv-source-dvdremux {
+    background-color: #a0662a;
+}
+
+.sv-source-dvdrip {
+    background-color: #b5843f;
+}
+
+.sv-source-webdl {
+    background-color: #2d6cdf;
+}
+
+.sv-source-webrip {
+    background-color: #5b86c9;
+}
+
+.sv-source-hdtv {
+    background-color: #6c757d;
+}
+
+.sv-confidence-medium {
+    opacity: 0.85;
+}
+
+.sv-confidence-low {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.sv-clue-for {
+    background-color: var(--bs-success-bg-subtle);
+    color: var(--bs-success-text-emphasis);
+    font-weight: 500;
+}
+
+.sv-clue-against {
+    background-color: var(--bs-danger-bg-subtle);
+    color: var(--bs-danger-text-emphasis);
+    font-weight: 500;
+}
+
+/* Plain and sortable column headers the same size. */
+.sv-card-table > thead > tr > th {
+    font-size: 0.875rem;
+}
+
+/* Subtitle preview: captions are light text with a dark outline on a transparent background. */
+.sv-caption {
+    display: inline-block;
+    max-width: 100%;
+    padding: .25rem;
+    border-radius: .25rem;
+    background-color: #3a3f44;
+    background-image: linear-gradient(45deg, #44494e 25%, transparent 25%, transparent 75%, #44494e 75%),
+                      linear-gradient(45deg, #44494e 25%, transparent 25%, transparent 75%, #44494e 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 8px 8px;
+}
+
+.sv-caption img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+/* ---- Sticky action bar and side tabs (as in the Muxarr fork) ---- */
+
+.sv-sticky-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 2rem;
+    padding: 0.75rem 0;
+    background: color-mix(in srgb, var(--bs-body-bg) 50%, transparent);
+    backdrop-filter: blur(4px);
+    border-top: 1px solid var(--bs-border-color);
+    z-index: 10;
+}
+
+[data-bs-theme="dark"] .sv-sticky-bar {
+    background: color-mix(in srgb, #0d0d1a 50%, transparent);
+    border-top-color: var(--sv-border);
+}
+
+@media (max-width: 767.98px) {
+    .sv-tab-row {
+        flex-direction: row !important;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .sv-tab-row .nav-link {
+        flex: 1 1 auto;
+        padding: 0.5rem;
+        text-align: center !important;
+        white-space: nowrap;
+    }
+
+    .sv-tab-row .nav-link > i {
+        display: none;
+    }
+
+    .sv-sticky-bar .btn {
+        padding: 0.375rem 0.625rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+    }
+}
+
+/* ---- Language list editor (as the Muxarr fork's LanguagePriorityEditor) ---- */
+
+.lpe-container { display: flex; flex-direction: column; gap: 0.25rem; }
+
+.lpe-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 0.375rem;
+    font-size: 0.85rem;
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    transition: border-color 0.15s, background-color 0.15s, opacity 0.15s;
+    user-select: none;
+    width: fit-content;
+}
+
+.lpe-item:hover { border-color: var(--bs-border-color-translucent); }
+.lpe-item-original { border-style: dashed; }
+.lpe-original-icon { font-size: 0.75rem; color: var(--bs-warning); opacity: 0.8; }
+.lpe-item-dragging { opacity: 0.35; }
+.lpe-item-dragover { box-shadow: inset 3px 0 0 var(--bs-primary); }
+.lpe-drag-handle { color: var(--bs-secondary-color); font-size: 0.8rem; cursor: grab; opacity: 0.5; }
+.lpe-item:hover .lpe-drag-handle { opacity: 0.9; }
+.lpe-priority-number { font-size: 0.65rem; font-weight: 600; color: var(--bs-secondary-color); min-width: 0.9rem; text-align: center; }
+.lpe-lang-name { font-weight: 500; color: var(--bs-body-color); }
+.lpe-lang-code { font-size: 0.75rem; color: var(--bs-secondary-color); }
+
+.lpe-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    padding: 0 0.15rem;
+    font-size: 0.7rem;
+    color: var(--bs-secondary-color);
+    opacity: 0.45;
+    cursor: pointer;
+    transition: opacity 0.15s, color 0.15s;
+    line-height: 1;
+}
+
+.lpe-icon-btn:hover:not(:disabled) { opacity: 1; }
+.lpe-icon-btn:disabled { opacity: 0.15; cursor: default; }
+.lpe-remove-btn:hover { color: var(--bs-danger); }
+.lpe-add-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.25rem; flex-wrap: wrap; }
+.lpe-add-wrapper { min-width: min(420px, 100%); flex-grow: 1; max-width: 32rem; }
+.lpe-add-wrapper input { font-size: 0.85rem; padding: 0.3rem 0.55rem; }

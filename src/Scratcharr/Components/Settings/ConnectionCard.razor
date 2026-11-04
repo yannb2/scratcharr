@@ -1,0 +1,181 @@
+@* One service on the Integrations tab: URL, key or login, Test and Save. *@
+@inject LiveSettings Settings
+@inject ScanService Scans
+@inject Toasts Toasts
+
+<div class="border rounded p-4 h-100">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <i class="bi @Icon text-primary"></i>
+        <h5 class="mb-0">@Name</h5>
+        @if (_test is { } test)
+        {
+            <span class="badge @(test.Ok ? "text-bg-success" : "text-bg-danger")">
+                <i class="bi @(test.Ok ? "bi-check-circle" : "bi-x-circle") me-1"></i>@(test.Ok ? "Connected" : "Not connected")
+            </span>
+        }
+        <span class="badge text-bg-secondary ms-auto" title="Where the values below come from">
+            @(Settings.Saved(Key) ? "Saved here" : Configured ? "From environment variables" : "Not set up")
+        </span>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="@($"{Id}-url")">URL</label>
+        <input id="@($"{Id}-url")" class="form-control" placeholder="@Example" @bind="_url"/>
+    </div>
+    @if (Service == Service.Qbittorrent)
+    {
+        <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+                <label class="form-label" for="@($"{Id}-user")">Username</label>
+                <input id="@($"{Id}-user")" class="form-control" autocomplete="off" @bind="_username"/>
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label" for="@($"{Id}-password")">Password</label>
+                <input id="@($"{Id}-password")" type="password" class="form-control" autocomplete="off" @bind="_secret"/>
+            </div>
+            <small class="form-text text-muted">Leave both empty when qBittorrent lets this subnet in without a login (Web UI &gt; Authentication &gt; bypass for clients in whitelisted IP subnets).</small>
+        </div>
+    }
+    else
+    {
+        <div class="mb-3">
+            <label class="form-label" for="@($"{Id}-key")">API key</label>
+            <input id="@($"{Id}-key")" type="password" class="form-control" autocomplete="off" @bind="_secret"/>
+            <small class="form-text text-muted">@(Service == Service.Sabnzbd ? "In SABnzbd: Config > General > Security." : $"In {Name}: Settings > General > Security.")</small>
+        </div>
+    }
+    <p class="small text-body-secondary">@Use</p>
+
+    @if (_test is { } result)
+    {
+        <div class="small mb-3 @(result.Ok ? "text-success" : "text-danger")">@result.Message</div>
+    }
+
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-primary btn-sm" disabled="@_busy" @onclick="Test">
+            @if (_busy)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            <i class="bi bi-plug me-1"></i>Test
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" @onclick="Save"><i class="bi bi-check-lg me-1"></i>Save</button>
+        @if (Settings.Saved(Key))
+        {
+            <button type="button" class="btn btn-light border btn-sm" @onclick="Reset"
+                    title="Forget what was saved here: the environment variables apply again">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Use environment variables
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Service Service { get; set; }
+    [Parameter] public string Icon { get; set; } = "bi-plug";
+    [Parameter] public string Example { get; set; } = "";
+    [Parameter] public string Use { get; set; } = "";
+
+    private string _url = "";
+    private string _username = "";
+    private string _secret = "";
+    private (bool Ok, string Message)? _test;
+    private bool _busy;
+
+    private string Name => Service switch
+    {
+        Service.Qbittorrent => "qBittorrent",
+        Service.Sabnzbd => "SABnzbd",
+        _ => Service.ToString()
+    };
+
+    private string Id => Service.ToString().ToLowerInvariant();
+
+    private string Key => Service switch
+    {
+        Service.Qbittorrent => LiveSettings.QbittorrentKey,
+        Service.Sabnzbd => LiveSettings.SabnzbdKey,
+        Service.Radarr => LiveSettings.RadarrKey,
+        Service.Sonarr => LiveSettings.SonarrKey,
+        _ => LiveSettings.LidarrKey
+    };
+
+    private bool Configured => Service switch
+    {
+        Service.Qbittorrent => Settings.Qbittorrent.Configured,
+        Service.Sabnzbd => Settings.Sabnzbd.Configured,
+        _ => Arr(Service).Configured
+    };
+
+    private ArrOptions Arr(Service service) => service switch
+    {
+        Service.Radarr => Settings.Radarr,
+        Service.Sonarr => Settings.Sonarr,
+        _ => Settings.Lidarr
+    };
+
+    protected override void OnInitialized() => Load();
+
+    private void Load()
+    {
+        switch (Service)
+        {
+            case Service.Qbittorrent:
+                var q = Settings.Qbittorrent;
+                (_url, _username, _secret) = (q.Url, q.Username, q.Password);
+                break;
+            case Service.Sabnzbd:
+                (_url, _secret) = (Settings.Sabnzbd.Url, Settings.Sabnzbd.ApiKey);
+                break;
+            default:
+                (_url, _secret) = (Arr(Service).Url, Arr(Service).ApiKey);
+                break;
+        }
+    }
+
+    private async Task Test()
+    {
+        _busy = true;
+        _test = Service switch
+        {
+            Service.Qbittorrent => await QbittorrentClient.TestAsync(Qbittorrent(), CancellationToken.None),
+            Service.Sabnzbd => await SabnzbdClient.TestAsync(Sabnzbd(), CancellationToken.None),
+            _ => await ArrClient.TestAsync(Enum.Parse<ArrApp>(Service.ToString()), ArrValues(), CancellationToken.None)
+        };
+        _busy = false;
+    }
+
+    private void Save()
+    {
+        switch (Service)
+        {
+            case Service.Qbittorrent:
+                Settings.Save(Key, Qbittorrent());
+                break;
+            case Service.Sabnzbd:
+                Settings.Save(Key, Sabnzbd());
+                break;
+            default:
+                Settings.Save(Key, ArrValues());
+                break;
+        }
+
+        Toasts.Success($"{Name} saved. Scanning again.");
+        Scans.ScanNow();
+    }
+
+    private void Reset()
+    {
+        Settings.Reset(Key);
+        Load();
+        _test = null;
+        Toasts.Show($"{Name} uses the environment variables again.", "info");
+        Scans.ScanNow();
+    }
+
+    private QbittorrentOptions Qbittorrent() => new() { Url = _url.Trim(), Username = _username.Trim(), Password = _secret };
+
+    private SabnzbdOptions Sabnzbd() => new() { Url = _url.Trim(), ApiKey = _secret.Trim() };
+
+    private ArrOptions ArrValues() => new() { Url = _url.Trim(), ApiKey = _secret.Trim() };
+}

@@ -1,0 +1,35 @@
+@* A short list of items for the overview cards. *@
+@if (Items.Count == 0)
+{
+    <div class="card-body small text-body-secondary">@Empty</div>
+}
+else
+{
+    <table class="table table-sm align-middle mb-0">
+        <tbody>
+        @foreach (var item in Items)
+        {
+            <tr>
+                <td class="sv-file-name">
+                    <a href="item/@item.Id" class="text-break">@item.Item.Name</a>
+                    <div class="small text-body-secondary">
+                        @item.Item.Folder@(item.Item.Category.Length > 0 ? $" / {item.Item.Category}" : "")
+                        @if (ShowRemoval && item.Removal?.Due is { } due)
+                        {
+                            <span> · @Format.TimeUntil(due)</span>
+                        }
+                    </div>
+                </td>
+                <td class="text-end"><VerdictBadge Verdict="item.Verdict"/></td>
+                <td class="text-end text-nowrap">@Format.Size(item.Item.Size)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ItemReport> Items { get; set; } = [];
+    [Parameter] public string Empty { get; set; } = "Nothing here.";
+    [Parameter] public bool ShowRemoval { get; set; }
+}

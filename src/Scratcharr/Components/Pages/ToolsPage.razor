@@ -1,0 +1,94 @@
+@page "/tools"
+@implements IDisposable
+@inject ToolStatusService Tools
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+
+<PageTitle>Tools · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center mb-3 gap-2">
+    <h2 class="mb-0 me-auto">Tools</h2>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Check" disabled="@Tools.Checking">
+        @if (Tools.Checking)
+        {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        else
+        {
+            <i class="bi bi-arrow-clockwise"></i>
+        }
+        Check for updates
+    </button>
+</div>
+
+<p class="text-body-secondary small">
+    Every tool is built into the image at a pinned version. Scratcharr only looks for newer versions
+    @(Tools.UpstreamCheckedAt is { } at ? $"(last look {Format.TimeAgo(at)})" : "")
+    and never installs anything: an update is a new image, proposed each week as a pull request on GitHub.
+</p>
+
+<div class="card mb-3">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+            <tr>
+                <th>Tool</th>
+                <th>In the image</th>
+                <th>Pinned</th>
+                <th>Newest</th>
+                <th>Used for</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var status in Tools.Statuses)
+            {
+                <tr>
+                    <td class="fw-semibold text-nowrap">
+                        @status.Tool.Name
+                        @if (status.Tool.ReleaseNotes != null)
+                        {
+                            <a href="@status.Tool.ReleaseNotes" target="_blank" rel="noopener" class="ms-1" title="Release notes"><i class="bi bi-box-arrow-up-right small"></i></a>
+                        }
+                    </td>
+                    <td class="text-nowrap">
+                        @if (status.Missing)
+                        {
+                            <span class="badge text-bg-danger">not installed</span>
+                        }
+                        else
+                        {
+                            @(status.Installed ?? "?")
+                        }
+                    </td>
+                    <td class="text-nowrap text-body-secondary">@(status.Pinned ?? "")</td>
+                    <td class="text-nowrap">
+                        @if (status.UpdateAvailable)
+                        {
+                            <span class="badge text-bg-info">@status.Latest available</span>
+                        }
+                        else if (status.Latest != null)
+                        {
+                            <span class="text-success">@status.Latest <i class="bi bi-check"></i></span>
+                        }
+                        else if (status.UpstreamError != null)
+                        {
+                            <span class="text-body-secondary small" title="@status.UpstreamError">could not check</span>
+                        }
+                    </td>
+                    <td class="small text-body-secondary">@status.Tool.Purpose</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized() => Tools.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private void Check() => Tools.CheckNow();
+
+    public void Dispose() => Tools.Changed -= OnChanged;
+}

@@ -1,0 +1,54 @@
+@* A Bootstrap modal that asks before an action: Ask("Delete…?") returns true on OK. *@
+@if (_message != null)
+{
+    <div class="modal d-block" tabindex="-1" role="dialog" @onkeydown="Key">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-question-circle text-primary me-2"></i>@_title</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="() => Close(false)"></button>
+                </div>
+                <div class="modal-body">@_message</div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => Close(false)">Cancel</button>
+                    <button type="button" class="btn @_buttonClass" @onclick="() => Close(true)">@_button</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@code {
+    private string? _message;
+    private string _title = "";
+    private string _button = "OK";
+    private string _buttonClass = "btn-primary";
+    private TaskCompletionSource<bool>? _answer;
+
+    public Task<bool> Ask(string title, string message, string button = "OK", bool danger = false)
+    {
+        _answer?.TrySetResult(false);
+        _title = title;
+        _message = message;
+        _button = button;
+        _buttonClass = danger ? "btn-danger" : "btn-primary";
+        _answer = new TaskCompletionSource<bool>();
+        StateHasChanged();
+        return _answer.Task;
+    }
+
+    private void Close(bool ok)
+    {
+        _message = null;
+        _answer?.TrySetResult(ok);
+    }
+
+    private void Key(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            Close(false);
+        }
+    }
+}

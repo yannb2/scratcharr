@@ -1,0 +1,7 @@
+@* The verdict as a coloured badge, its meaning on hover. *@
+<span class="badge text-bg-@Verdict.Css() @Class" title="@Verdict.Help()">@Verdict.Label()</span>
+
+@code {
+    [Parameter, EditorRequired] public Verdict Verdict { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

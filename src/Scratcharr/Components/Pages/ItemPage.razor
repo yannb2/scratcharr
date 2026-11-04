@@ -1,0 +1,250 @@
+@page "/item/{Id}"
+@inject ScanService Scans
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+
+<PageTitle>@(_item?.Item.Name ?? "Item") · Scratcharr</PageTitle>
+
+@if (_item is not { } report)
+{
+    <h2 class="mb-3">Not found</h2>
+    <p>This item was not in the last scan (it may have been removed). <a href="items">Back to the downloads</a>.</p>
+}
+else
+{
+    var item = report.Item;
+    <div class="d-flex align-items-start flex-wrap gap-2 border-bottom pb-3 mb-3">
+        <div class="me-auto" style="min-width: 0">
+            <div class="small text-body-secondary">
+                <a href="items">Downloads</a> /
+                <a href="items?folder=@Uri.EscapeDataString(item.Folder)&category=@Uri.EscapeDataString(item.Category)">@item.Folder@(item.Category.Length > 0 ? $" / {item.Category}" : "")</a>
+            </div>
+            <h2 class="mb-1 text-break"><i class="bi @(item.IsDirectory ? "bi-folder" : "bi-file-earmark") me-2"></i>@item.Name</h2>
+            <div class="sv-path small text-body-secondary">@item.Path</div>
+        </div>
+        <ScanButton Scanned="Load"/>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-7">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <VerdictBadge Verdict="report.Verdict" Class="fs-6"/>
+                        <span class="small text-body-secondary">@report.Verdict.Help()</span>
+                    </div>
+                    <ul class="mb-2">
+                        @foreach (var reason in report.Reasons)
+                        {
+                            <li>@reason</li>
+                        }
+                    </ul>
+                    @if (report.Removal is { } removal)
+                    {
+                        <div class="small">
+                            <i class="bi @(removal.Nobody ? "bi-infinity" : "bi-hourglass-split") me-1"></i>
+                            <span class="fw-semibold">Leaves:</span> @removal.Text
+                            @if (removal.Overdue(DateTime.UtcNow))
+                            {
+                                <span class="badge text-bg-warning ms-1">overdue</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @foreach (var torrent in report.Torrents)
+            {
+                <div class="card mb-3">
+                    <div class="card-header fw-semibold"><i class="bi bi-magnet me-1"></i>qBittorrent</div>
+                    <table class="table table-sm mb-0 small">
+                        <tbody>
+                        <tr><td class="text-body-secondary w-25">Name</td><td class="text-break">@torrent.Name</td></tr>
+                        <tr><td class="text-body-secondary">State</td><td>@torrent.StateWord <span class="text-body-secondary">(@torrent.State)</span></td></tr>
+                        <tr><td class="text-body-secondary">Category</td><td>@(torrent.Category.Length > 0 ? torrent.Category : "(none)")</td></tr>
+                        <tr><td class="text-body-secondary">Progress</td><td>@((torrent.Progress * 100).ToString("0.#"))%</td></tr>
+                        <tr><td class="text-body-secondary">Seeding</td><td>@Classifier.Hours(torrent.SeedingSeconds / 60) @Limit(torrent)</td></tr>
+                        <tr><td class="text-body-secondary">Ratio</td><td>@torrent.Ratio.ToString("0.00")</td></tr>
+                        @if (torrent.Added is { } added)
+                        {
+                            <tr><td class="text-body-secondary">Added</td><td>@Format.LocalDate(added) (@Format.TimeAgo(added))</td></tr>
+                        }
+                        @if (torrent.Completed is { } completed)
+                        {
+                            <tr><td class="text-body-secondary">Finished</td><td>@Format.LocalDate(completed) (@Format.TimeAgo(completed))</td></tr>
+                        }
+                        <tr><td class="text-body-secondary">Hash</td><td class="font-monospace">@torrent.Hash</td></tr>
+                        <tr><td class="text-body-secondary">Content path</td><td class="sv-path">@torrent.ContentPath</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @foreach (var job in report.SabJobs)
+            {
+                <div class="card mb-3">
+                    <div class="card-header fw-semibold"><i class="bi bi-cloud-download me-1"></i>SABnzbd @(job.InQueue ? "queue" : "history")</div>
+                    <table class="table table-sm mb-0 small">
+                        <tbody>
+                        <tr><td class="text-body-secondary w-25">Name</td><td class="text-break">@job.Name</td></tr>
+                        <tr><td class="text-body-secondary">Status</td><td>@job.Status</td></tr>
+                        <tr><td class="text-body-secondary">Category</td><td>@(job.Category.Length > 0 ? job.Category : "(none)")</td></tr>
+                        @if (job.Completed is { } completed)
+                        {
+                            <tr><td class="text-body-secondary">Finished</td><td>@Format.LocalDate(completed) (@Format.TimeAgo(completed))</td></tr>
+                        }
+                        @if (job.FailMessage.Length > 0)
+                        {
+                            <tr><td class="text-body-secondary">Message</td><td class="text-danger">@job.FailMessage</td></tr>
+                        }
+                        <tr><td class="text-body-secondary">ID</td><td class="font-monospace">@job.NzoId</td></tr>
+                        <tr><td class="text-body-secondary">Folder</td><td class="sv-path">@job.Path</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (report.Queue.Count > 0 || report.History.Count > 0)
+            {
+                <div class="card mb-3">
+                    <div class="card-header fw-semibold"><i class="bi bi-film me-1"></i>Arr apps</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 small align-middle">
+                            <thead>
+                            <tr><th>App</th><th>What</th><th>When</th><th>Details</th></tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var q in report.Queue)
+                            {
+                                <tr>
+                                    <td>@q.App</td>
+                                    <td><span class="badge text-bg-info">queue</span> @q.Item.TrackedState</td>
+                                    <td>now</td>
+                                    <td class="text-break">
+                                        @q.Item.Title
+                                        @foreach (var message in q.Item.Messages)
+                                        {
+                                            <div class="text-warning">@message</div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            @foreach (var h in report.History)
+                            {
+                                <tr>
+                                    <td>@h.App</td>
+                                    <td><span class="badge @(h.Item.Kind switch { ArrEventKind.Imported => "text-bg-success", ArrEventKind.Failed => "text-bg-danger", _ => "sv-badge-muted" })">@h.Item.EventType</span></td>
+                                    <td class="text-nowrap" title="@Format.LocalDate(h.Item.Date)">@Format.TimeAgo(h.Item.Date)</td>
+                                    <td class="text-break">
+                                        @h.Item.SourceTitle
+                                        @if (h.Item.ImportedPath.Length > 0)
+                                        {
+                                            <div class="text-body-secondary sv-path">→ @h.Item.ImportedPath</div>
+                                        }
+                                        @if (h.Item.Message.Length > 0)
+                                        {
+                                            <div class="text-body-secondary">@h.Item.Message</div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card mb-3">
+                <div class="card-header fw-semibold"><i class="bi bi-hdd me-1"></i>On disk</div>
+                <table class="table table-sm mb-0 small">
+                    <tbody>
+                    <tr><td class="text-body-secondary w-50">Size</td><td>@Format.Size(item.Size)</td></tr>
+                    <tr><td class="text-body-secondary">Files</td><td>@item.Files</td></tr>
+                    <tr><td class="text-body-secondary">Last change</td><td>@Format.LocalDate(item.Modified) (@Format.TimeAgo(item.Modified))</td></tr>
+                    <tr><td class="text-body-secondary">First seen by Scratcharr</td><td>@Format.LocalDate(report.FirstSeen)</td></tr>
+                    @if (item.Videos > 0)
+                    {
+                        <tr><td class="text-body-secondary">Videos</td><td>@item.Videos</td></tr>
+                    }
+                    @if (item.Archives > 0)
+                    {
+                        <tr><td class="text-body-secondary">Archive sets</td><td>@item.Archives <span class="text-body-secondary">(Unpack comes in v0.2)</span></td></tr>
+                    }
+                    @if (item.Discs > 0)
+                    {
+                        <tr><td class="text-body-secondary">Discs (ISO, BDMV)</td><td>@item.Discs <span class="text-body-secondary">(Ripparr can open them)</span></td></tr>
+                    }
+                    @if (item.PartFiles > 0)
+                    {
+                        <tr><td class="text-body-secondary">Unfinished files (.!qB)</td><td>@item.PartFiles</td></tr>
+                    }
+                    @if (item.ReadError != null)
+                    {
+                        <tr><td class="text-body-secondary">Read error</td><td class="text-danger">@item.ReadError</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (item.LargestFiles.Count > 0 && item.IsDirectory)
+            {
+                <div class="card mb-3">
+                    <div class="card-header fw-semibold">Largest files</div>
+                    <table class="table table-sm mb-0 small">
+                        <tbody>
+                        @foreach (var file in item.LargestFiles)
+                        {
+                            <tr>
+                                <td class="text-break">@file.RelativePath</td>
+                                <td class="text-end text-nowrap">@Format.Size(file.Size)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    @if (item.Files > item.LargestFiles.Count)
+                    {
+                        <div class="card-footer small text-body-secondary">and @(item.Files - item.LargestFiles.Count) smaller files</div>
+                    }
+                </div>
+            }
+
+            <div class="card mb-3">
+                <div class="card-header fw-semibold">Actions</div>
+                <div class="card-body small text-body-secondary">
+                    @if (Options.Value.AllowChanges)
+                    {
+                        <span>Changes are allowed, but v0.1 has no actions yet: Unpack comes in v0.2, Recycle and Remove in v0.4.</span>
+                    }
+                    else
+                    {
+                        <span>Read-only: nothing here changes a file. Unpack comes in v0.2, Recycle and Remove in v0.4, behind <code>Scratcharr__AllowChanges=true</code>.</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private ItemReport? _item;
+
+    protected override void OnParametersSet() => Load();
+
+    private void Load() => _item = Scans.Last?.Find(Id);
+
+    private string Limit(Torrent torrent)
+    {
+        var qbt = Scans.Last?.Evidence.Qbittorrent.State;
+        return torrent.SeedingLimitMinutes switch
+        {
+            -1 => "(no limit)",
+            -2 when qbt?.Limits.Minutes is { } m => $"of {Classifier.Hours(m)} (global limit)",
+            -2 => "(no global time limit)",
+            var m => $"of {Classifier.Hours(m)} (this torrent's limit)"
+        };
+    }
+}

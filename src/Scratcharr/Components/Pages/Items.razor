@@ -1,0 +1,224 @@
+@page "/items"
+@inject ScanService Scans
+@inject NavigationManager Navigation
+
+<PageTitle>Downloads · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center flex-wrap gap-2 border-bottom pb-3 mb-3">
+    <h2 class="mb-0 me-auto"><i class="bi bi-folder2-open me-2"></i>Downloads</h2>
+    <ScanButton Scanned="StateHasChanged"/>
+</div>
+
+@if (Scans.Last is not { } scan)
+{
+    <div class="text-body-secondary"><span class="spinner-border spinner-border-sm me-2"></span>First scan…</div>
+}
+else
+{
+    var all = scan.Items;
+    var shown = Filter(all).ToList();
+
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+        <div class="btn-group btn-group-sm" role="group">
+            @foreach (var (key, label) in Views)
+            {
+                <a class="btn @(View == key ? "btn-primary" : "btn-outline-secondary")" href="@Link(view: key, verdict: "", clearVerdict: true)">@label</a>
+            }
+        </div>
+        <select class="form-select form-select-sm w-auto" value="@(Verdict ?? "")" @onchange="OnVerdict">
+            <option value="">Any verdict</option>
+            @foreach (var v in Enum.GetValues<Verdict>())
+            {
+                <option value="@v">@v.Label() (@all.Count(i => i.Verdict == v))</option>
+            }
+        </select>
+        <select class="form-select form-select-sm w-auto" value="@(FolderKey)" @onchange="OnFolder">
+            <option value="">Any folder</option>
+            @foreach (var f in all.Select(i => (i.Item.Folder, i.Item.Category)).Distinct().OrderBy(f => f.Folder).ThenBy(f => f.Category))
+            {
+                <option value="@($"{f.Folder}|{f.Category}")">@f.Folder@(f.Category.Length > 0 ? $" / {f.Category}" : "")</option>
+            }
+        </select>
+        <input class="form-control form-control-sm w-auto" placeholder="Search names" value="@Q"
+               @onchange="OnSearch"/>
+        <span class="small text-body-secondary ms-auto">@shown.Count items, @Format.Size(shown.Sum(i => i.Item.Size))</span>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 sv-card-table">
+                <thead>
+                <tr>
+                    <th>@SortHeader("name", "Name")</th>
+                    <th>Verdict</th>
+                    <th class="d-none d-lg-table-cell">Client</th>
+                    <th class="d-none d-xl-table-cell">Arr</th>
+                    <th class="text-end">@SortHeader("size", "Size")</th>
+                    <th class="text-end">@SortHeader("age", "Changed")</th>
+                    <th class="d-none d-md-table-cell">Leaves</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in shown)
+                {
+                    <tr class="sv-clickable-row" @onclick="() => Open(item)">
+                        <td class="sv-file-name">
+                            <i class="bi @(item.Item.IsDirectory ? "bi-folder" : "bi-file-earmark") me-1 text-body-secondary"></i>
+                            <a href="item/@item.Id" class="text-break" @onclick:stopPropagation="true">@item.Item.Name</a>
+                            <div class="small text-body-secondary">
+                                @item.Item.Folder@(item.Item.Category.Length > 0 ? $" / {item.Item.Category}" : "")
+                                @if (item.Item.Archives > 0)
+                                {
+                                    <span class="badge sv-badge-muted ms-1" title="Archive sets inside">@item.Item.Archives archive@(item.Item.Archives == 1 ? "" : "s")</span>
+                                }
+                                @if (item.Item.Discs > 0)
+                                {
+                                    <span class="badge sv-badge-muted ms-1" title="ISO files or BDMV folders inside">disc</span>
+                                }
+                            </div>
+                        </td>
+                        <td><VerdictBadge Verdict="item.Verdict"/></td>
+                        <td class="d-none d-lg-table-cell small">
+                            @if (item.Torrents.FirstOrDefault() is { } t)
+                            {
+                                <span title="qBittorrent">@t.StateWord</span>
+                            }
+                            else if (item.SabJobs.FirstOrDefault() is { } j)
+                            {
+                                <span title="SABnzbd">@(j.InQueue ? "In the queue" : j.Status)</span>
+                            }
+                        </td>
+                        <td class="d-none d-xl-table-cell small">
+                            @{
+                                var app = item.Queue.Select(q => q.App).Concat(item.History.Select(h => h.App)).Distinct().ToList();
+                            }
+                            @string.Join(", ", app)
+                        </td>
+                        <td class="text-end text-nowrap">@Format.Size(item.Item.Size)</td>
+                        <td class="text-end text-nowrap small" title="@Format.LocalDate(item.Item.Modified)">@Format.TimeAgo(item.Item.Modified)</td>
+                        <td class="d-none d-md-table-cell small">
+                            @if (item.Removal is { } r)
+                            {
+                                @if (r.Nobody)
+                                {
+                                    <span class="text-body-secondary" title="@r.Text">never</span>
+                                }
+                                else if (r.Due is { } due)
+                                {
+                                    <span title="@r.Text">@Format.TimeUntil(due)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-body-secondary" title="@r.Text">after import</span>
+                                }
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (shown.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-body-secondary">Nothing matches.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? View { get; set; }
+    [SupplyParameterFromQuery(Name = "verdict")] public string? Verdict { get; set; }
+    [SupplyParameterFromQuery] public string? Folder { get; set; }
+    [SupplyParameterFromQuery] public string? Category { get; set; }
+    [SupplyParameterFromQuery] public string? Q { get; set; }
+    [SupplyParameterFromQuery] public string? Sort { get; set; }
+
+    private static readonly (string Key, string Label)[] Views =
+    [
+        ("", "All"),
+        ("review", "To review"),
+        ("stays", "Nothing removes"),
+        ("active", "Active")
+    ];
+
+    private string FolderKey => Folder == null ? "" : $"{Folder}|{Category}";
+
+    private IEnumerable<ItemReport> Filter(IEnumerable<ItemReport> items)
+    {
+        items = (View ?? "") switch
+        {
+            "review" => items.Where(i => i.Verdict.NeedsReview()),
+            "stays" => items.Where(i => i.StaysForever),
+            "active" => items.Where(i => i.Verdict is Scan.Verdict.Active or Scan.Verdict.WaitingForImport),
+            _ => items
+        };
+        if (Enum.TryParse<Verdict>(Verdict, out var verdict))
+        {
+            items = items.Where(i => i.Verdict == verdict);
+        }
+
+        if (Folder != null)
+        {
+            items = items.Where(i => i.Item.Folder == Folder && i.Item.Category == (Category ?? ""));
+        }
+
+        if (!string.IsNullOrWhiteSpace(Q))
+        {
+            items = items.Where(i => i.Item.Name.Contains(Q.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        return (Sort ?? "size") switch
+        {
+            "name" => items.OrderBy(i => i.Item.Name, StringComparer.OrdinalIgnoreCase),
+            "age" => items.OrderBy(i => i.Item.Modified),
+            _ => items.OrderByDescending(i => i.Item.Size)
+        };
+    }
+
+    private RenderFragment SortHeader(string key, string label) => __builder =>
+    {
+        <a href="@Link(sort: key)" class="text-reset text-decoration-none">
+            @label
+            @if ((Sort ?? "size") == key)
+            {
+                <i class="bi bi-caret-down-fill small"></i>
+            }
+        </a>
+    };
+
+    private string Link(string? view = null, string? verdict = null, string? q = null, string? sort = null, bool clearVerdict = false)
+    {
+        var values = new Dictionary<string, object?>
+        {
+            ["view"] = Empty(view ?? View),
+            ["verdict"] = clearVerdict ? null : Empty(verdict ?? Verdict),
+            ["folder"] = Folder,
+            ["category"] = Folder == null ? null : Category ?? "",
+            ["q"] = Empty(q ?? Q),
+            ["sort"] = Empty(sort ?? Sort)
+        };
+        return Navigation.GetUriWithQueryParameters("items", values);
+    }
+
+    private string FolderLink(string key)
+    {
+        var parts = key.Split('|', 2);
+        return Navigation.GetUriWithQueryParameters(Link(), new Dictionary<string, object?>
+        {
+            ["folder"] = key.Length == 0 ? null : parts[0],
+            ["category"] = key.Length == 0 ? null : parts.Length > 1 ? parts[1] : ""
+        });
+    }
+
+    private static string? Empty(string? value) => string.IsNullOrEmpty(value) ? null : value;
+
+    private void Go(string url) => Navigation.NavigateTo(url);
+
+    private void Open(ItemReport item) => Navigation.NavigateTo($"item/{item.Id}");
+
+    private void OnVerdict(ChangeEventArgs e) => Go(Link(verdict: e.Value?.ToString() ?? ""));
+
+    private void OnFolder(ChangeEventArgs e) => Go(FolderLink(e.Value?.ToString() ?? ""));
+
+    private void OnSearch(ChangeEventArgs e) => Go(Link(q: e.Value?.ToString() ?? ""));
+}
