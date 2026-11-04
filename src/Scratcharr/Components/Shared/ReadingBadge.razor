@@ -1,0 +1,19 @@
+@* Whether a service could be read in the last scan. *@
+@if (!Configured)
+{
+    <span class="badge text-bg-secondary">not set up</span>
+}
+else if (Error != null)
+{
+    <span class="badge text-bg-danger" title="@Error">not reachable</span>
+}
+else
+{
+    <span class="badge text-bg-success">@(string.IsNullOrEmpty(Version) ? "connected" : Version)</span>
+}
+
+@code {
+    [Parameter] public bool Configured { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public string? Version { get; set; }
+}

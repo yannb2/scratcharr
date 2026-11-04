@@ -1,0 +1,27 @@
+# Scratcharr next to qBittorrent (behind gluetun), SABnzbd and the arr apps, in the same compose project.
+services:
+  scratcharr:
+    image: ghcr.io/yannb2/scratcharr:dev
+    container_name: scratcharr
+    user: 1000:1000
+    environment:
+      TZ: America/Toronto
+      Scratcharr__AllowChanges: "false"            # read-only; later versions use true for unpack, copy, clean-up
+      Scratcharr__Qbittorrent__Url: http://gluetun:8080
+      Scratcharr__Qbittorrent__Username: ${QBT_USER:-}
+      Scratcharr__Qbittorrent__Password: ${QBT_PASSWORD:-}
+      Scratcharr__Sabnzbd__Url: http://sabnzbd:8080
+      Scratcharr__Sabnzbd__ApiKey: ${SABNZBD_API_KEY:-}
+      Scratcharr__Radarr__Url: http://radarr:7878
+      Scratcharr__Radarr__ApiKey: ${RADARR_API_KEY:-}
+      Scratcharr__Sonarr__Url: http://sonarr:8989
+      Scratcharr__Sonarr__ApiKey: ${SONARR_API_KEY:-}
+      Scratcharr__Lidarr__Url: http://lidarr:8686
+      Scratcharr__Lidarr__ApiKey: ${LIDARR_API_KEY:-}
+    ports:
+      - 8188:8188
+    volumes:
+      - /config/scratcharr:/config
+      - /downloads:/downloads:ro                   # read-only is enough for v0.1
+      - /mnt/pc:/mnt/pc:ro,rslave                  # USB disks (/mnt/pc/usbxx), for "From USB" later
+    restart: unless-stopped

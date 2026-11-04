@@ -1,0 +1,121 @@
+@implements IDisposable
+@inject ScanService Scans
+@inject ToolStatusService Tools
+
+<nav class="sv-sidebar @(_collapsed ? "collapsed" : "") @(MobileOpen ? "sv-mobile-open" : "")">
+    <div class="sv-sidebar-header d-none d-md-flex">
+        <a href="" class="d-flex align-items-center gap-2 text-decoration-none">
+            <img src="favicon.svg" alt="" class="sv-logo"/>
+            <span class="text-light fw-semibold sv-logo-text">Scratcharr</span>
+        </a>
+    </div>
+
+    <div class="sv-nav-content">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick="Close">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>Overview</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="items" @onclick="Close">
+                    <i class="bi bi-folder2-open"></i>
+                    <span>Downloads@(_review > 0 ? $" ({_review})" : "")</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="check" @onclick="Close">
+                    <i class="bi bi-clipboard-check"></i>
+                    <span>Settings check@(_warnings > 0 ? $" ({_warnings})" : "")</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="tools" @onclick="Close">
+                    <i class="bi bi-tools"></i>
+                    <span>Tools@(Tools.UpdateCount > 0 ? $" ({Tools.UpdateCount})" : "")</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="settings" @onclick="Close">
+                    <i class="bi bi-gear"></i>
+                    <span>Settings</span>
+                </NavLink>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sv-sidebar-footer">
+        <ul class="nav flex-column w-100">
+            <li class="nav-item">
+                <button class="nav-link w-100" onclick="scratcharrTheme.toggle()">
+                    <i class="bi bi-circle-half"></i>
+                    <span>Light / dark</span>
+                </button>
+            </li>
+        </ul>
+        <div class="d-flex align-items-center justify-content-between sv-footer-meta">
+            <span class="d-flex align-items-center gap-2">
+                <ConnectionLight/>
+                <a href="https://github.com/yannb2/scratcharr" target="_blank" rel="noopener"
+                   class="sv-version text-decoration-none">v@(AppInfo.Version)</a>
+            </span>
+            <button class="btn btn-link text-light p-0 sv-footer-btn d-none d-md-inline-flex"
+                    @onclick="() => _collapsed = !_collapsed"
+                    title="@(_collapsed ? "Expand" : "Collapse")">
+                <i class="bi @(_collapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+            </button>
+        </div>
+    </div>
+</nav>
+
+@if (MobileOpen)
+{
+    <div class="sv-sidebar-backdrop d-md-none" @onclick="Close"></div>
+}
+
+@code {
+    [Parameter] public bool MobileOpen { get; set; }
+    [Parameter] public EventCallback<bool> MobileOpenChanged { get; set; }
+
+    private bool _collapsed;
+    private int _review;
+    private int _warnings;
+
+    protected override void OnInitialized()
+    {
+        Count();
+        Scans.Changed += OnChanged;
+        Tools.Changed += OnChanged;
+    }
+
+    private void Count()
+    {
+        var last = Scans.Last;
+        _review = last?.Items.Count(i => i.Verdict.NeedsReview()) ?? 0;
+        _warnings = last?.Settings.Findings.Count(f => f.Severity == Severity.Warning) ?? 0;
+    }
+
+    private void OnChanged()
+    {
+        InvokeAsync(() =>
+        {
+            Count();
+            StateHasChanged();
+        });
+    }
+
+    private async Task Close()
+    {
+        if (MobileOpen)
+        {
+            await MobileOpenChanged.InvokeAsync(false);
+        }
+    }
+
+    public void Dispose()
+    {
+        Scans.Changed -= OnChanged;
+        Tools.Changed -= OnChanged;
+    }
+}

@@ -1,0 +1,25 @@
+<p class="text-body-secondary">
+    Scratcharr only reads these services: torrents, jobs, queues, history and download client settings. What is
+    saved here wins over the <code>Scratcharr__…</code> environment variables, which only give the starting values.
+    A new scan starts after each save.
+</p>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <ConnectionCard Service="Service.Qbittorrent" Icon="bi-magnet" Example="http://gluetun:8080"
+                        Use="Torrents, their categories and the seeding limits."/>
+    </div>
+    <div class="col-lg-6">
+        <ConnectionCard Service="Service.Sabnzbd" Icon="bi-cloud-download" Example="http://sabnzbd:8080"
+                        Use="The queue, the history, folders and categories."/>
+    </div>
+    <div class="col-lg-4">
+        <ConnectionCard Service="Service.Radarr" Icon="bi-film" Example="http://radarr:7878" Use="Queue, history and download clients."/>
+    </div>
+    <div class="col-lg-4">
+        <ConnectionCard Service="Service.Sonarr" Icon="bi-tv" Example="http://sonarr:8989" Use="Queue, history and download clients."/>
+    </div>
+    <div class="col-lg-4">
+        <ConnectionCard Service="Service.Lidarr" Icon="bi-music-note-beamed" Example="http://lidarr:8686" Use="Queue, history and download clients."/>
+    </div>
+</div>

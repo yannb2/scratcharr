@@ -1,0 +1,183 @@
+@page "/"
+@inject ScanService Scans
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+
+<PageTitle>Overview · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center flex-wrap gap-2 border-bottom pb-3 mb-3">
+    <h2 class="mb-0 me-auto"><i class="bi bi-speedometer2 me-2"></i>Overview</h2>
+    <ScanButton Scanned="StateHasChanged"/>
+</div>
+
+@if (Scans.Last is not { } scan)
+{
+    <div class="text-body-secondary"><span class="spinner-border spinner-border-sm me-2"></span>First scan of @Options.Value.DownloadsRoot…</div>
+}
+else
+{
+    @if (scan.Error != null)
+    {
+        <div class="alert alert-danger">The last scan failed: @scan.Error</div>
+    }
+
+    var items = scan.Items;
+    var review = items.Where(i => i.Verdict.NeedsReview()).ToList();
+    var stays = items.Where(i => i.StaysForever).ToList();
+    var used = items.Sum(i => i.Item.Size);
+
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-xl-3">
+            <a class="card sv-stat-card h-100 text-decoration-none" href="items">
+                <div class="card-body">
+                    <div class="small text-body-secondary">In @Options.Value.DownloadsRoot</div>
+                    <div class="fs-4 fw-semibold">@Format.Size(used)</div>
+                    <div class="small text-body-secondary">@items.Count items</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card sv-stat-card h-100">
+                <div class="card-body">
+                    <div class="small text-body-secondary">Free on the pool</div>
+                    <div class="fs-4 fw-semibold">@(scan.TotalBytes > 0 ? Format.Size(scan.FreeBytes) : "?")</div>
+                    @if (scan.TotalBytes > 0)
+                    {
+                        var pct = 100.0 * (scan.TotalBytes - scan.FreeBytes) / scan.TotalBytes;
+                        <div class="progress mt-1" style="height: 6px" title="@pct.ToString("0")% used">
+                            <div class="progress-bar @(pct > 85 ? "bg-danger" : pct > 70 ? "bg-warning" : "bg-success")" style="width: @pct.ToString("0.0")%"></div>
+                        </div>
+                        <div class="small text-body-secondary mt-1">of @Format.Size(scan.TotalBytes)</div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <a class="card sv-stat-card h-100 text-decoration-none" href="items?view=review">
+                <div class="card-body">
+                    <div class="small text-body-secondary">To review</div>
+                    <div class="fs-4 fw-semibold @(review.Count > 0 ? "text-warning" : "")">@Format.Size(review.Sum(i => i.Item.Size))</div>
+                    <div class="small text-body-secondary">@review.Count items: strays, leftovers, failed</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-xl-3">
+            <a class="card sv-stat-card h-100 text-decoration-none" href="items?view=stays">
+                <div class="card-body">
+                    <div class="small text-body-secondary">Nothing will remove</div>
+                    <div class="fs-4 fw-semibold">@Format.Size(stays.Sum(i => i.Item.Size))</div>
+                    <div class="small text-body-secondary">@stays.Count items, manual ones not counted</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header fw-semibold">By verdict</div>
+                <table class="table table-sm align-middle mb-0">
+                    <tbody>
+                    @foreach (var group in items.GroupBy(i => i.Verdict).OrderBy(g => g.Key))
+                    {
+                        <tr class="sv-clickable-row">
+                            <td><a href="items?verdict=@group.Key"><VerdictBadge Verdict="group.Key"/></a></td>
+                            <td class="small text-body-secondary d-none d-md-table-cell">@group.Key.Help()</td>
+                            <td class="text-end text-nowrap">@group.Count()</td>
+                            <td class="text-end text-nowrap">@Format.Size(group.Sum(i => i.Item.Size))</td>
+                        </tr>
+                    }
+                    @if (items.Count == 0)
+                    {
+                        <tr><td class="text-body-secondary">Nothing in the watched folders.</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header fw-semibold d-flex">
+                    <span class="me-auto">Connections</span>
+                    <a href="settings/integrations" class="small">Settings</a>
+                </div>
+                <table class="table table-sm align-middle mb-0">
+                    <tbody>
+                    <tr>
+                        <td>qBittorrent</td>
+                        <td class="text-end"><ReadingBadge Configured="scan.Evidence.Qbittorrent.Configured" Error="@scan.Evidence.Qbittorrent.Error" Version="@scan.Evidence.Qbittorrent.State?.Version"/></td>
+                        <td class="text-end small text-body-secondary">@(scan.Evidence.Qbittorrent.State?.Torrents.Count) torrents</td>
+                    </tr>
+                    <tr>
+                        <td>SABnzbd</td>
+                        <td class="text-end"><ReadingBadge Configured="scan.Evidence.Sabnzbd.Configured" Error="@scan.Evidence.Sabnzbd.Error" Version="@scan.Evidence.Sabnzbd.State?.Version"/></td>
+                        <td class="text-end small text-body-secondary">
+                            @if (scan.Evidence.Sabnzbd.State is { } sab)
+                            {
+                                <span>@sab.Queue.Count queued, @sab.History.Count in history</span>
+                            }
+                        </td>
+                    </tr>
+                    @foreach (var (app, reading) in scan.Evidence.Arr)
+                    {
+                        <tr>
+                            <td>@app</td>
+                            <td class="text-end"><ReadingBadge Configured="reading.Configured" Error="@reading.Error" Version="@reading.State?.Version"/></td>
+                            <td class="text-end small text-body-secondary">
+                                @if (reading.State is { } arr)
+                                {
+                                    <span>@arr.Queue.Count queued, @arr.History.Count recent events</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header fw-semibold">Biggest to review</div>
+                <ItemList Items="review.OrderByDescending(i => i.Item.Size).Take(10).ToList()" Empty="Nothing to review."/>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header fw-semibold">Leaving in the next 24 hours</div>
+                <ItemList Items="scan.Items.Where(i => i.Removal is { Nobody: false, Due: { } due } && due < DateTime.UtcNow.AddHours(24)).OrderBy(i => i.Removal!.Due).Take(10).ToList()"
+                          Empty="Nothing is due to leave in the next 24 hours." ShowRemoval="true"/>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">By folder</div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                        <tr><th>Folder</th><th class="text-end">Items</th><th class="text-end">Size</th><th class="text-end">To review</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var group in items.GroupBy(i => (i.Item.Folder, i.Item.Category)).OrderBy(g => g.Key.Folder).ThenBy(g => g.Key.Category))
+                        {
+                            <tr>
+                                <td>
+                                    <a href="items?folder=@Uri.EscapeDataString(group.Key.Folder)&category=@Uri.EscapeDataString(group.Key.Category)">@group.Key.Folder</a>
+                                    @if (group.Key.Category.Length > 0)
+                                    {
+                                        <span class="text-body-secondary"> / @group.Key.Category</span>
+                                    }
+                                </td>
+                                <td class="text-end">@group.Count()</td>
+                                <td class="text-end">@Format.Size(group.Sum(i => i.Item.Size))</td>
+                                <td class="text-end">@group.Count(i => i.Verdict.NeedsReview())</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}

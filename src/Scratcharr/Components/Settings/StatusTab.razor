@@ -1,0 +1,51 @@
+@inject IOptions<ScratcharrOptions> Options
+@inject ScanService Scans
+@inject LiveSettings Live
+@using Microsoft.Extensions.Options
+
+<p class="text-body-secondary">
+    What Scratcharr runs with. Folders and these values come from the environment variables
+    (<code>Scratcharr__…</code>) and need a restart to change.
+</p>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Folders</div>
+            <table class="table table-sm mb-0 small">
+                <tbody>
+                <tr><td class="text-body-secondary text-nowrap">Downloads</td><td class="sv-path">@Options.Value.DownloadsRoot</td></tr>
+                @foreach (var folder in Options.Value.Folders)
+                {
+                    <tr><td class="text-body-secondary text-nowrap">@folder.Name</td><td class="sv-path">@folder.Path</td></tr>
+                }
+                <tr><td class="text-body-secondary text-nowrap">Protected</td><td class="sv-path">@string.Join(", ", Options.Value.Protected)</td></tr>
+                <tr><td class="text-body-secondary text-nowrap">Category folders</td><td>@string.Join(", ", Options.Value.CategoryFolders) (plus the clients' categories)</td></tr>
+                <tr><td class="text-body-secondary text-nowrap">Database</td><td class="sv-path">@Options.Value.DatabasePath</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Settings</div>
+            <table class="table table-sm mb-0 small">
+                <tbody>
+                <tr><td class="text-body-secondary">Changes allowed</td><td>@(Options.Value.AllowChanges ? "yes" : "no, read-only")</td></tr>
+                <tr><td class="text-body-secondary">Scan every</td><td>@Options.Value.ScanMinutes min</td></tr>
+                <tr><td class="text-body-secondary">Last scan took</td><td>@(Scans.Last is { } last ? $"{last.Took.TotalSeconds:0.0} s" : "-")</td></tr>
+                <tr><td class="text-body-secondary">qBittorrent</td><td>@(Live.Qbittorrent.Configured ? Live.Qbittorrent.Url : "not set up")</td></tr>
+                <tr><td class="text-body-secondary">SABnzbd</td><td>@(Live.Sabnzbd.Configured ? Live.Sabnzbd.Url : "not set up")</td></tr>
+                <tr><td class="text-body-secondary">Radarr</td><td>@Arr(Live.Radarr)</td></tr>
+                <tr><td class="text-body-secondary">Sonarr</td><td>@Arr(Live.Sonarr)</td></tr>
+                <tr><td class="text-body-secondary">Lidarr</td><td>@Arr(Live.Lidarr)</td></tr>
+                <tr><td class="text-body-secondary">Version</td><td>@AppInfo.Version</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private static string Arr(ArrOptions arr) => arr.Configured ? arr.Url : "not set up";
+}

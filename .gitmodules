@@ -1,0 +1,3 @@
+[submodule "arrkit"]
+	path = arrkit
+	url = https://github.com/yannb2/arrkit

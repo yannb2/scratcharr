@@ -1,0 +1,38 @@
+@* "Scan now" with the time of the last scan; redraws its page when a scan ends. *@
+@implements IDisposable
+@inject ScanService Scans
+
+<span class="small text-body-secondary me-2 d-none d-sm-inline">
+    @if (Scans.Last is { } last)
+    {
+        <span title="@Format.LocalDate(last.FinishedAt)">Scanned @Format.TimeAgo(last.FinishedAt)</span>
+    }
+</span>
+<button class="btn btn-sm btn-outline-secondary" @onclick="Scans.ScanNow" disabled="@Scans.Scanning">
+    @if (Scans.Scanning)
+    {
+        <span class="spinner-border spinner-border-sm me-1"></span><span>Scanning…</span>
+    }
+    else
+    {
+        <i class="bi bi-arrow-clockwise me-1"></i><span>Scan now</span>
+    }
+</button>
+
+@code {
+    /// <summary>Called after a scan, so the page shows the new result.</summary>
+    [Parameter] public EventCallback Scanned { get; set; }
+
+    protected override void OnInitialized() => Scans.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(async () =>
+    {
+        StateHasChanged();
+        if (!Scans.Scanning)
+        {
+            await Scanned.InvokeAsync();
+        }
+    });
+
+    public void Dispose() => Scans.Changed -= OnChanged;
+}

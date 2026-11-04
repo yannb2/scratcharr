@@ -1,0 +1,77 @@
+name: Tool updates
+
+# Once a week, looks for a newer 7-Zip and opens (or updates) a pull request that bumps the
+# ARG line in the Dockerfile. The image build on that branch is the test; nothing merges on its own.
+#
+# Needs Settings > Actions > General > "Allow GitHub Actions to create and approve
+# pull requests" turned on, or the PR step fails.
+
+on:
+  schedule:
+    # Mondays 09:30 UTC.
+    - cron: '30 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: tool-updates
+  cancel-in-progress: false
+
+env:
+  BRANCH: tool-updates
+
+jobs:
+  bump:
+    if: github.repository == 'yannb2/scratcharr'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Look for newer tools
+        id: bump
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 -I .github/scripts/bump_tools.py | tee summary.md
+
+      - name: Push the branch
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git commit -am "Update tools: ${{ steps.bump.outputs.tools }}"
+          git push --force origin "$BRANCH"
+
+      - name: Open or update the pull request
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TOOLS: ${{ steps.bump.outputs.tools }}
+        run: |
+          {
+            echo "Newer tool versions for the image."
+            echo
+            cat summary.md
+            echo
+            echo "Merge once the image build is green, then pull \`ghcr.io/yannb2/scratcharr:dev\` on the media VM."
+          } > body.md
+          existing=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "Update tools: $TOOLS" --body-file body.md
+          else
+            gh pr create --head "$BRANCH" --base main --title "Update tools: $TOOLS" --body-file body.md
+          fi
+
+      # Pull requests opened with the workflow token don't start other workflows,
+      # so start the image build on the branch explicitly.
+      - name: Build the image on the branch
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --ref "$BRANCH"

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Scratcharr/Scratcharr.csproj" />
+  </Folder>
+  <Folder Name="/arrkit/">
+    <Project Path="arrkit/src/Arrkit/Arrkit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Scratcharr.Tests/Scratcharr.Tests.csproj" />
+  </Folder>
+</Solution>
