@@ -56,6 +56,18 @@ public class ScratcharrOptions
     public bool VerifyCopies { get; set; } = true;
 
     /// <summary>
+    /// Where Recycle moves items, one dated folder per day (relative to the downloads root). An item on another
+    /// mount inside /downloads goes to a .recycle folder at the top of that mount instead, so the move stays instant.
+    /// </summary>
+    public string RecycleFolder { get; set; } = ".recycle";
+
+    /// <summary>Days a recycled item is kept before it is deleted for good.</summary>
+    public double RecycleDays { get; set; } = 7;
+
+    /// <summary>The weekly summary sent to ntfy.</summary>
+    public NtfyOptions Ntfy { get; set; } = new();
+
+    /// <summary>
     /// Ripparr's address as the browser reaches it (http://10.1.72.11:8186), for the "Open in Ripparr" links.
     /// Empty: the links are not shown.
     /// </summary>
@@ -126,6 +138,12 @@ public class ScratcharrOptions
         Protected = Protected.Select(Absolute).ToList();
         DiscsFolder = Absolute(DiscsFolder);
         ImportFolder = Absolute(ImportFolder);
+        RecycleFolder = Absolute(RecycleFolder);
+        if (RecycleDays < 1)
+        {
+            RecycleDays = 1;
+        }
+
         UsbRoot = Paths.Clean(System.IO.Path.GetFullPath(UsbRoot));
         if (ScanMinutes < 1)
         {
@@ -219,4 +237,21 @@ public class UpdateCheckOptions
     public bool Enabled { get; set; } = true;
 
     public double IntervalHours { get; set; } = 24;
+}
+
+public class NtfyOptions
+{
+    /// <summary>The topic URL (https://ntfy.sh/my-topic or http://ntfy/scratcharr). Empty: no summary. NTFY_URL in compose.</summary>
+    public string Url { get; set; } = "";
+
+    /// <summary>An access token when the topic needs one.</summary>
+    public string Token { get; set; } = "";
+
+    /// <summary>The day and local hour the weekly summary goes out.</summary>
+    public DayOfWeek Day { get; set; } = DayOfWeek.Monday;
+
+    public int Hour { get; set; } = 9;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Configured => !string.IsNullOrWhiteSpace(Url);
 }

@@ -42,6 +42,12 @@ public sealed partial class Store
                 id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, source TEXT NOT NULL, target TEXT NOT NULL,
                 item TEXT NOT NULL DEFAULT '', state TEXT NOT NULL, created TEXT NOT NULL, started TEXT, finished TEXT,
                 size INTEGER NOT NULL DEFAULT 0, message TEXT NOT NULL DEFAULT '', log TEXT NOT NULL DEFAULT '');
+            CREATE TABLE IF NOT EXISTS recycled (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, original TEXT NOT NULL, path TEXT NOT NULL, size INTEGER NOT NULL,
+                recycled TEXT NOT NULL, verdict TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '');
+            CREATE TABLE IF NOT EXISTS actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT NOT NULL, action TEXT NOT NULL, path TEXT NOT NULL,
+                size INTEGER NOT NULL DEFAULT 0, detail TEXT NOT NULL DEFAULT '', ok INTEGER NOT NULL DEFAULT 1);
             """;
         command.ExecuteNonQuery();
     }

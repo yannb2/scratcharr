@@ -5,8 +5,8 @@ using Scratcharr.Options;
 namespace Scratcharr.Clients;
 
 /// <summary>
-/// Reads qBittorrent's Web API v2: the torrents, the categories and the seeding limits.
-/// Read-only: nothing here changes a torrent.
+/// Reads qBittorrent's Web API v2: the torrents, the categories and the seeding limits. The one change it makes is
+/// <see cref="RemoveAsync"/> (Clean up), which takes torrents out of qBittorrent and leaves their files for Recycle.
 /// </summary>
 public sealed class QbittorrentClient(LiveSettings settings, ILogger<QbittorrentClient> logger)
 {
@@ -45,6 +45,49 @@ public sealed class QbittorrentClient(LiveSettings settings, ILogger<Qbittorrent
         {
             logger.LogWarning("qBittorrent: {Message}", e.Message);
             return Reading<QbittorrentState>.Failed(Describe(e));
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Removes torrents from qBittorrent without deleting their files: Recycle moves the files afterwards, so they
+    /// can still be restored for 7 days and qBittorrent never sees files vanish under a torrent it still lists.
+    /// </summary>
+    public async Task RemoveAsync(IReadOnlyCollection<string> hashes, CancellationToken cancellationToken)
+    {
+        if (hashes.Count == 0)
+        {
+            return;
+        }
+
+        var options = settings.Qbittorrent;
+        if (!options.Configured)
+        {
+            throw new InvalidOperationException("qBittorrent is not set up.");
+        }
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            var http = Client(options);
+            var form = new Dictionary<string, string>
+            {
+                ["hashes"] = string.Join('|', hashes.Select(h => h.ToLowerInvariant())),
+                ["deleteFiles"] = "false"
+            };
+            using var response = await http.PostAsync("api/v2/torrents/delete", new FormUrlEncodedContent(form), cancellationToken);
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                await LoginAsync(http, options, cancellationToken);
+                using var again = await http.PostAsync("api/v2/torrents/delete", new FormUrlEncodedContent(form), cancellationToken);
+                await Body(again, cancellationToken);
+                return;
+            }
+
+            await Body(response, cancellationToken);
         }
         finally
         {

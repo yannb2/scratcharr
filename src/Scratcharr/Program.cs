@@ -1,3 +1,4 @@
+using Scratcharr.Clean;
 using Arrkit.Logging;
 using System.Globalization;
 using Scratcharr;
@@ -33,6 +34,9 @@ builder.Services.AddSingleton<ScanService>();
 builder.Services.AddHostedService(services => services.GetRequiredService<ScanService>());
 builder.Services.AddSingleton<JobQueue>();
 builder.Services.AddHostedService(services => services.GetRequiredService<JobQueue>());
+builder.Services.AddSingleton<Cleaner>();
+builder.Services.AddSingleton<CleanupService>();
+builder.Services.AddHostedService(services => services.GetRequiredService<CleanupService>());
 builder.Services.AddSingleton<ToolStatusService>();
 builder.Services.AddHostedService(services => services.GetRequiredService<ToolStatusService>());
 
@@ -51,8 +55,8 @@ app.MapStaticAssets();
 app.MapGet("/health", () => Results.Ok("ok"));
 
 // Counts for a dashboard (Homepage's custom API widget). Read-only, no key.
-app.MapGet("/api/stats", (ScanService scans, ToolStatusService tools, JobQueue jobs) =>
-    Results.Ok(Stats.From(scans.Last, scans.Scanning, tools, jobs.OpenCount)));
+app.MapGet("/api/stats", (ScanService scans, ToolStatusService tools, JobQueue jobs, Cleaner cleaner) =>
+    Results.Ok(Stats.From(scans.Last, scans.Scanning, tools, jobs.OpenCount, cleaner.Recycled())));
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

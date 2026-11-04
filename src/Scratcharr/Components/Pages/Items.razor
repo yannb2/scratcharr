@@ -1,6 +1,10 @@
 @page "/items"
 @inject ScanService Scans
 @inject NavigationManager Navigation
+@inject IOptions<ScratcharrOptions> Options
+@inject Cleaner Cleaner
+@inject Toasts Toasts
+@using Microsoft.Extensions.Options
 
 <PageTitle>Downloads · Scratcharr</PageTitle>
 
@@ -44,11 +48,40 @@ else
         <span class="small text-body-secondary ms-auto">@shown.Count items, @Format.Size(shown.Sum(i => i.Item.Size))</span>
     </div>
 
+    var picked = shown.Where(i => _picked.Contains(i.Item.Path)).ToList();
+    @if (picked.Count > 0)
+    {
+        <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2 small">
+            <span class="me-auto"><strong>@picked.Count selected</strong>, @Format.Size(picked.Sum(i => i.Item.Size))</span>
+            <button class="btn btn-sm btn-link" @onclick="() => _picked.Clear()">Clear</button>
+            <button class="btn btn-sm btn-warning" disabled="@(_busy || !Options.Value.AllowChanges)" @onclick="() => Clean(picked)"
+                    title="@(Options.Value.AllowChanges ? "Recycle the selected items" : Scratcharr.Jobs.UnpackPlan.ChangesOff)">
+                @if (_busy)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                else
+                {
+                    <i class="bi bi-recycle me-1"></i>
+                }
+                Recycle
+            </button>
+        </div>
+    }
+
     <div class="card">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 sv-card-table">
                 <thead>
                 <tr>
+                    <th style="width: 2rem">
+                        @{
+                            var cleanable = shown.Where(i => CleanPlan.Offer(i, Options.Value).Allowed).ToList();
+                        }
+                        <input class="form-check-input" type="checkbox" aria-label="Select all that can be recycled" disabled="@(cleanable.Count == 0)"
+                               checked="@(cleanable.Count > 0 && cleanable.All(i => _picked.Contains(i.Item.Path)))"
+                               @onchange="e => PickAll(cleanable, (bool)e.Value!)"/>
+                    </th>
                     <th>@SortHeader("name", "Name")</th>
                     <th>Verdict</th>
                     <th class="d-none d-lg-table-cell">Client</th>
@@ -62,6 +95,16 @@ else
                 @foreach (var item in shown)
                 {
                     <tr class="sv-clickable-row" @onclick="() => Open(item)">
+                        <td @onclick:stopPropagation="true">
+                            @{
+                                var offer = CleanPlan.Offer(item, Options.Value);
+                            }
+                            @if (offer.Allowed)
+                            {
+                                <input class="form-check-input" type="checkbox" aria-label="Select @item.Item.Name" title="@offer.Text"
+                                       checked="@_picked.Contains(item.Item.Path)" @onchange="e => Pick(item, (bool)e.Value!)"/>
+                            }
+                        </td>
                         <td class="sv-file-name">
                             <i class="bi @(item.Item.IsDirectory ? "bi-folder" : "bi-file-earmark") me-1 text-body-secondary"></i>
                             <a href="item/@item.Id" class="text-break" @onclick:stopPropagation="true">@item.Item.Name</a>
@@ -117,7 +160,7 @@ else
                 }
                 @if (shown.Count == 0)
                 {
-                    <tr><td colspan="7" class="text-body-secondary">Nothing matches.</td></tr>
+                    <tr><td colspan="8" class="text-body-secondary">Nothing matches.</td></tr>
                 }
                 </tbody>
             </table>
@@ -125,7 +168,63 @@ else
     </div>
 }
 
+<ConfirmDialog @ref="_confirm"/>
+
 @code {
+    private readonly HashSet<string> _picked = [];
+    private ConfirmDialog? _confirm;
+    private bool _busy;
+
+    private void Pick(ItemReport item, bool on)
+    {
+        if (on)
+        {
+            _picked.Add(item.Item.Path);
+        }
+        else
+        {
+            _picked.Remove(item.Item.Path);
+        }
+    }
+
+    private void PickAll(IEnumerable<ItemReport> items, bool on)
+    {
+        foreach (var item in items)
+        {
+            Pick(item, on);
+        }
+    }
+
+    private async Task Clean(List<ItemReport> picked)
+    {
+        var torrents = picked.Count(i => CleanPlan.Offer(i, Options.Value).Kind == CleanKind.RemoveTorrent);
+        var ok = await _confirm!.Ask($"Recycle {(picked.Count == 1 ? picked[0].Item.Name : $"{picked.Count} items")}?",
+            $"{Format.Size(picked.Sum(i => i.Item.Size))} moves to the recycle folder, kept {Options.Value.RecycleDays:0.#} days."
+            + (torrents > 0 ? $" {torrents} of them still have a torrent in qBittorrent: it is removed first (files kept)." : "")
+            + " Each item is checked again right before.",
+            "Recycle", danger: torrents > 0);
+        if (!ok)
+        {
+            return;
+        }
+
+        _busy = true;
+        StateHasChanged();
+        var outcomes = await Cleaner.CleanAsync(picked.Select(i => i.Item.Path).ToList(), CancellationToken.None);
+        _busy = false;
+        _picked.Clear();
+        var done = outcomes.Where(o => o.Ok).ToList();
+        if (done.Count > 0)
+        {
+            Toasts.Success($"Recycled {(done.Count == 1 ? System.IO.Path.GetFileName(done[0].Path) : $"{done.Count} items")}. Restore from the Recycle page.");
+        }
+
+        foreach (var failed in outcomes.Where(o => !o.Ok))
+        {
+            Toasts.Error($"{System.IO.Path.GetFileName(failed.Path)}: {failed.Message}");
+        }
+    }
+
     [SupplyParameterFromQuery] public string? View { get; set; }
     [SupplyParameterFromQuery(Name = "verdict")] public string? Verdict { get; set; }
     [SupplyParameterFromQuery] public string? Folder { get; set; }

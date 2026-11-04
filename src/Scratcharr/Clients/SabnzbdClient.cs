@@ -3,7 +3,10 @@ using Scratcharr.Options;
 
 namespace Scratcharr.Clients;
 
-/// <summary>Reads SABnzbd's API: queue, history, folders and categories. Read-only.</summary>
+/// <summary>
+/// Reads SABnzbd's API: queue, history, folders and categories. The one change it makes is
+/// <see cref="DeleteHistoryAsync"/> (Clean up): history entries only, never their files.
+/// </summary>
 public sealed class SabnzbdClient(LiveSettings settings, ILogger<SabnzbdClient> logger)
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
@@ -38,6 +41,23 @@ public sealed class SabnzbdClient(LiveSettings settings, ILogger<SabnzbdClient> 
             logger.LogWarning("SABnzbd: {Message}", e.Message);
             return Reading<SabnzbdState>.Failed(e is TaskCanceledException ? "SABnzbd did not answer in time." : e.Message);
         }
+    }
+
+    /// <summary>Removes finished jobs from SABnzbd's history, leaving their files (Recycle moves those).</summary>
+    public async Task DeleteHistoryAsync(IReadOnlyCollection<string> nzoIds, CancellationToken cancellationToken)
+    {
+        if (nzoIds.Count == 0)
+        {
+            return;
+        }
+
+        var options = settings.Sabnzbd;
+        if (!options.Configured)
+        {
+            throw new InvalidOperationException("SABnzbd is not set up.");
+        }
+
+        await CallAsync(options, "history", $"&name=delete&del_files=0&value={Uri.EscapeDataString(string.Join(',', nzoIds))}", cancellationToken);
     }
 
     public static async Task<(bool Ok, string Message)> TestAsync(SabnzbdOptions options, CancellationToken cancellationToken)

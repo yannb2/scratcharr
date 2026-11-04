@@ -1,6 +1,9 @@
 @page "/item/{Id}"
 @inject ScanService Scans
 @inject IOptions<ScratcharrOptions> Options
+@inject Cleaner Cleaner
+@inject Toasts Toasts
+@inject NavigationManager Navigation
 @using Microsoft.Extensions.Options
 
 <PageTitle>@(_item?.Item.Name ?? "Item") · Scratcharr</PageTitle>
@@ -222,21 +225,41 @@ else
             }
 
             <div class="card mb-3">
-                <div class="card-header fw-semibold">Actions</div>
-                <div class="card-body small text-body-secondary">
-                    @if (Options.Value.AllowChanges)
-                    {
-                        <span>Changes are allowed. Archives are unpacked from the <a href="unpack">Unpack</a> page; Recycle and Remove come in v0.4.</span>
+                <div class="card-header fw-semibold">Clean up</div>
+                <div class="card-body small">
+                    @{
+                        var offer = CleanPlan.Offer(report, Options.Value);
                     }
-                    else
+                    <p class="mb-2 @(offer.Allowed ? "" : "text-body-secondary")">
+                        <i class="bi @(offer.Allowed ? "bi-recycle" : "bi-slash-circle") me-1"></i>@offer.Text
+                    </p>
+                    @if (offer.Allowed)
                     {
-                        <span>Read-only: nothing here changes a file. Unpack works with <code>Scratcharr__AllowChanges=true</code> (and /downloads mounted read-write); Recycle and Remove come in v0.4.</span>
+                        <button class="btn btn-sm @(offer.Kind == CleanKind.RemoveTorrent ? "btn-outline-danger" : "btn-outline-warning")"
+                                disabled="@(_busy || !Options.Value.AllowChanges)" @onclick="() => Clean(report, offer)"
+                                title="@(Options.Value.AllowChanges ? offer.Text : Scratcharr.Jobs.UnpackPlan.ChangesOff)">
+                            @if (_busy)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-recycle me-1"></i>
+                            }
+                            @offer.Button
+                        </button>
+                        @if (!Options.Value.AllowChanges)
+                        {
+                            <div class="text-body-secondary mt-2">@Scratcharr.Jobs.UnpackPlan.ChangesOff</div>
+                        }
                     }
                 </div>
             </div>
         </div>
     </div>
 }
+
+<ConfirmDialog @ref="_confirm"/>
 
 @code {
     [Parameter] public string Id { get; set; } = "";
@@ -246,6 +269,35 @@ else
     protected override void OnParametersSet() => Load();
 
     private void Load() => _item = Scans.Last?.Find(Id);
+
+    private ConfirmDialog? _confirm;
+    private bool _busy;
+
+    private async Task Clean(ItemReport report, CleanOffer offer)
+    {
+        var ok = await _confirm!.Ask($"{offer.Button}?",
+            $"{report.Item.Path} ({Format.Size(report.Item.Size)}). {offer.Text} Restore it from the Recycle page.",
+            offer.Button, danger: offer.Kind == CleanKind.RemoveTorrent);
+        if (!ok)
+        {
+            return;
+        }
+
+        _busy = true;
+        StateHasChanged();
+        var outcome = (await Cleaner.CleanAsync([report.Item.Path], CancellationToken.None)).Single();
+        _busy = false;
+        if (outcome.Ok)
+        {
+            Toasts.Success($"{report.Item.Name}: {outcome.Message}");
+            Navigation.NavigateTo("recycle");
+        }
+        else
+        {
+            Toasts.Error($"{report.Item.Name}: {outcome.Message}");
+            Load();
+        }
+    }
 
     private string Limit(Torrent torrent)
     {
