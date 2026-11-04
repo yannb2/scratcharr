@@ -1,3 +1,4 @@
+using Arrkit.Logging;
 using System.Globalization;
 using Scratcharr;
 using Scratcharr.Clients;
@@ -16,6 +17,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOptions<ScratcharrOptions>()
     .Bind(builder.Configuration.GetSection(ScratcharrOptions.Section))
     .PostConfigure(o => o.WithDefaults());
+
+// The last lines in memory for the Logs page (arrkit, shared with Ripparr, Salvarr, Specarr).
+var memoryLog = new MemoryLog();
+builder.Logging.AddProvider(new MemoryLoggerProvider(memoryLog));
+builder.Services.AddSingleton(memoryLog);
 
 builder.Services.AddSingleton<Store>();
 builder.Services.AddSingleton<LiveSettings>();

@@ -954,3 +954,14 @@ h2:focus {
 .lpe-add-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.25rem; flex-wrap: wrap; }
 .lpe-add-wrapper { min-width: min(420px, 100%); flex-grow: 1; max-width: 32rem; }
 .lpe-add-wrapper input { font-size: 0.85rem; padding: 0.3rem 0.55rem; }
+
+/* Logs page */
+.sv-log-message {
+    word-break: break-word;
+}
+
+.sv-log-exception {
+    white-space: pre-wrap;
+    max-height: 24rem;
+    overflow: auto;
+}
