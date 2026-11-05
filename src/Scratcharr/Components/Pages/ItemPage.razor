@@ -25,7 +25,10 @@ else
             <h2 class="mb-1 text-break"><i class="bi @(item.IsDirectory ? "bi-folder" : "bi-file-earmark") me-2"></i>@item.Name</h2>
             <div class="sv-path small text-body-secondary">@item.Path</div>
         </div>
-        <ScanButton Scanned="Load"/>
+        <div class="d-flex gap-2 align-items-center">
+            <OpenInSpecarr Url="@Options.Value.SpecarrUrl" Path="@item.Path"/>
+            <ScanButton Scanned="Load"/>
+        </div>
     </div>
 
     <div class="row g-3">
@@ -222,7 +225,13 @@ else
                         @foreach (var file in item.LargestFiles)
                         {
                             <tr>
-                                <td class="text-break">@file.RelativePath</td>
+                                <td class="text-break">
+                                    @file.RelativePath
+                                    @if (SpecarrLink.HasDetails(file.RelativePath))
+                                    {
+                                        <OpenInSpecarr Url="@Options.Value.SpecarrUrl" Path="@System.IO.Path.Combine(item.Path, file.RelativePath)" Compact="true"/>
+                                    }
+                                </td>
                                 <td class="text-end text-nowrap">@Format.Size(file.Size)</td>
                             </tr>
                         }

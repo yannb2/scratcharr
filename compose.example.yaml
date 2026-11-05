@@ -8,6 +8,7 @@ services:
       TZ: America/Toronto
       Scratcharr__AllowChanges: "false"            # true turns on Unpack, From USB and Clean up (then drop :ro on /downloads below)
       Scratcharr__RipparrUrl: http://10.1.72.11:8186   # for Open in Ripparr links
+      Scratcharr__SpecarrUrl: http://10.1.72.11:8185   # for Open in Specarr links (file details)
       Scratcharr__Ntfy__Url: ${NTFY_URL:-}             # weekly summary (Monday 9:00); empty = none
       Scratcharr__Qbittorrent__Url: http://gluetun:8080
       Scratcharr__Qbittorrent__ApiKey: ${QBT_API_KEY:-}     # qBittorrent 5.2+; or the login below

@@ -82,6 +82,12 @@ public class ScratcharrOptions
     /// </summary>
     public string RipparrUrl { get; set; } = "";
 
+    /// <summary>
+    /// Specarr's address as the browser reaches it (http://10.1.72.11:8185), for the "Open in Specarr" links:
+    /// tracks, bit rates, Dolby Vision and the source guess of a download or an external file. Empty: no links.
+    /// </summary>
+    public string SpecarrUrl { get; set; } = "";
+
     public QbittorrentOptions Qbittorrent { get; set; } = new();
 
     public SabnzbdOptions Sabnzbd { get; set; } = new();

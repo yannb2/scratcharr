@@ -141,10 +141,15 @@ else
                                 else if (entry.IsDirectory)
                                 {
                                     <a href="@Browse(entry.Path)">@entry.Name</a>
+                                    <OpenInSpecarr Url="@O.SpecarrUrl" Path="@entry.Path" Compact="true"/>
                                 }
                                 else
                                 {
                                     @entry.Name
+                                    @if (SpecarrLink.HasDetails(entry.Name))
+                                    {
+                                        <OpenInSpecarr Url="@O.SpecarrUrl" Path="@entry.Path" Compact="true"/>
+                                    }
                                 }
                             </td>
                             <td class="small text-nowrap">
