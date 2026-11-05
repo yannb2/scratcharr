@@ -86,7 +86,7 @@ public static class UsbCopy
 
                 if (input.Length != length || hash.GetCurrentHashAsUInt64() != expected)
                 {
-                    throw new IOException($"The copy of {Path.GetFileName(to)} does not match the original (xxHash differs). Check the USB cable and disk.");
+                    throw new IOException($"The copy of {Path.GetFileName(to)} does not match the original (xxHash differs). Check the disk, cable or network share.");
                 }
             }
 

@@ -106,6 +106,29 @@ public sealed class UsbTests
     }
 
     [TestMethod]
+    public void Archives_on_an_external_disk_are_counted_and_can_be_unpacked()
+    {
+        var options = Options();
+        File("pc/usb01/Movie.Release/Movie.part1.rar");
+        File("pc/usb01/Movie.Release/Movie.part2.rar");
+        File("pc/usb01/Movie.Release/Extras/extras.zip");
+        var single = File("pc/usb01/Concert.7z");
+        File("pc/usb01/Film.mkv");
+
+        var entries = CopyPlan.List(Path.Combine(_usb, "usb01")).ToDictionary(e => e.Name);
+        Assert.AreEqual(2, entries["Movie.Release"].Archives);
+        Assert.AreEqual(1, entries["Concert.7z"].Archives);
+        Assert.AreEqual(0, entries["Film.mkv"].Archives);
+
+        var target = Jobs.UnpackPlan.Target(options, "Concert");
+        Assert.IsTrue(Jobs.UnpackPlan.FromExternal(options, single));
+        Assert.IsNull(Jobs.UnpackPlan.Problem(options, single, target, 10, 0, []));
+
+        var elsewhere = File("other/Concert.7z");
+        StringAssert.Contains(Jobs.UnpackPlan.Problem(options, elsewhere, target, 10, 0, []), "Only archives under");
+    }
+
+    [TestMethod]
     [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
     public void An_unreadable_folder_is_listed_with_the_reason_and_the_rest_still_shows()
     {

@@ -21,6 +21,12 @@ public static class UnpackPlan
     /// </summary>
     public static bool Offers(DiskItem item) => item.Archives > 0 && !item.Protected && item.Kind != FolderKind.UsenetIncomplete;
 
+    public static bool FromDownloads(ScratcharrOptions options, string path) => Paths.IsUnder(path, options.DownloadsRoot);
+
+    /// <summary>An archive on an external disk or share (/mnt/pc): unpacked the same way, it is only read.</summary>
+    public static bool FromExternal(ScratcharrOptions options, string path) =>
+        options.UsbRoot.Length > 0 && Paths.IsUnder(path, options.UsbRoot) && !Paths.IsUnder(path, options.DownloadsRoot);
+
     /// <summary>The target folder for a name typed on the page, or null when the name can't be used.</summary>
     public static string? Target(ScratcharrOptions options, string name)
     {
@@ -58,9 +64,9 @@ public static class UnpackPlan
             return "The archive is not there any more.";
         }
 
-        if (!Paths.IsUnder(start, options.DownloadsRoot))
+        if (!FromDownloads(options, start) && !FromExternal(options, start))
         {
-            return $"Only archives under {options.DownloadsRoot} are unpacked.";
+            return $"Only archives under {options.DownloadsRoot} or {options.UsbRoot} are unpacked.";
         }
 
         if (Directory.Exists(target) && Directory.EnumerateFileSystemEntries(target).Any() || File.Exists(target))

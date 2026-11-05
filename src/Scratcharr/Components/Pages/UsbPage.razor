@@ -153,6 +153,12 @@ else
                                 {
                                     <span class="@(entry.Unreadable == null ? "text-body-secondary" : "") ms-1">@(entry.Files == 1 ? "1 file" : $"{entry.Files} files")@(entry.Partial ? "+" : "")</span>
                                 }
+                                @if (entry.Archives > 0 && entry.Unreadable == null)
+                                {
+                                    <a class="ms-1 text-nowrap" href="unpack?from=@Uri.EscapeDataString(entry.Path)" title="Unpack into @Rel(O.DiscsFolder)/ for Ripparr">
+                                        <i class="bi bi-box-arrow-up me-1"></i>@(entry.Archives == 1 ? "Unpack" : $"Unpack {entry.Archives} archives")
+                                    </a>
+                                }
                             </td>
                             <td class="text-end small text-nowrap">@Format.Size(entry.Size)</td>
                             <td class="small">
@@ -314,9 +320,9 @@ else
         var size = picked.Sum(r => r.Entry.Size);
         var where = picked.GroupBy(r => Rel(CopyPlan.Folder(O, r.Entry.Kind, _destination)))
             .Select(g => $"{g.Count()} into {g.Key}/");
-        var ok = await _confirm!.Ask("Copy from USB?",
+        var ok = await _confirm!.Ask("Copy?",
             $"{(picked.Count == 1 ? picked[0].Entry.Name : $"{picked.Count} items")}, {Format.Size(size)}: {string.Join(", ", where)}. "
-            + "The USB disk is not changed.",
+            + "The originals are only read: nothing on the external disk or share is changed, moved or deleted.",
             "Copy");
         if (!ok)
         {
