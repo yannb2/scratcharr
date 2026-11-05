@@ -55,7 +55,7 @@ public sealed record Stats
 
     public static Stats From(ScanResult? scan, bool scanning, ToolStatusService tools, int openJobs = 0,
         IReadOnlyList<Options.RecycledItem>? recycled = null, IReadOnlyList<Scratcharr.Jobs.Job>? jobs = null, int progress = 0,
-        Clean.SpaceAlertSettings? space = null, DateTime? nowUtc = null)
+        Clean.SpaceAlertSettings? space = null, DateTime? nowUtc = null, string remaining = "")
     {
         var now = nowUtc ?? DateTime.UtcNow;
         jobs ??= [];
@@ -89,7 +89,7 @@ public sealed record Stats
             JobsRunning = running == null ? 0 : 1,
             JobsDone = done,
             JobsFailed = failed,
-            JobStatus = JobLine(running, progress, queued, done, failed),
+            JobStatus = JobLine(running, progress, queued, done, failed, remaining),
             TotalBytes = scan?.TotalBytes ?? 0,
             FreePercent = scan is { TotalBytes: > 0 } s ? Math.Round(Clean.SpaceAlert.FreePercent(s), 1) : 0,
             Space = scan is { TotalBytes: > 0 } t
@@ -99,12 +99,13 @@ public sealed record Stats
         };
     }
 
-    public static string JobLine(Scratcharr.Jobs.Job? running, int progress, int queued, int done, int failed)
+    public static string JobLine(Scratcharr.Jobs.Job? running, int progress, int queued, int done, int failed, string remaining = "")
     {
         var parts = new List<string>();
         if (running != null)
         {
-            parts.Add($"{(running.Kind == Scratcharr.Jobs.JobKind.Copy ? "Copying" : "Unpacking")} {running.Name} · {progress}%");
+            parts.Add($"{(running.Kind == Scratcharr.Jobs.JobKind.Copy ? "Copying" : "Unpacking")} {running.Name} · {progress}%"
+                      + (remaining.Length > 0 ? $", {remaining.Split(" · ")[0]}" : ""));
         }
 
         if (queued > 0)
