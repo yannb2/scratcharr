@@ -75,6 +75,7 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | `Ntfy__Url/Token` | | ntfy topic URL (`NTFY_URL`, as for the scripts) and optional token: the weekly summary |
 | `Ntfy__Day/Hour` | Monday, 9 | When the summary goes out (local time) |
 | `RipparrUrl` | | Ripparr as the browser reaches it (`http://10.1.72.11:8186`), for Open in Ripparr links |
+| `SpecarrUrl` | | Specarr as the browser reaches it (`http://10.1.72.11:8185`), for Open in Specarr links (item page, its largest files, External files): tracks, bit rates, Dolby Vision, source guess |
 | `Qbittorrent__Url/ApiKey/Username/Password` | | `http://gluetun:8080`; the API key (qBittorrent 5.2+, Options > WebUI) wins over the login; leave both empty when the subnet is whitelisted |
 | `Sabnzbd__Url/ApiKey` | | `http://sabnzbd:8080` |
 | `Radarr__`, `Sonarr__`, `Lidarr__` `Url/ApiKey` | | |
