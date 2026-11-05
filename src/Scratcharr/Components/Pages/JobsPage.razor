@@ -60,6 +60,9 @@ else
                         <div class="progress mt-2" role="progressbar" aria-valuenow="@Queue.Progress" aria-valuemin="0" aria-valuemax="100" style="height: 1.1rem">
                             <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: @(Queue.Progress)%">@(Queue.Progress)%</div>
                         </div>
+                        <div class="small text-body-secondary mt-1">
+                            <i class="bi bi-hourglass-split me-1"></i>@(Queue.Remaining() is { Length: > 0 } left ? left : "Working out the time left...")
+                        </div>
                     }
                     @if (job.Message.Length > 0)
                     {
@@ -83,10 +86,14 @@ else
     private IReadOnlyList<Job> _jobs = [];
     private readonly HashSet<long> _open = [];
 
+    private Timer? _tick;
+
     protected override void OnInitialized()
     {
         _jobs = Queue.Jobs();
         Queue.Changed += OnChanged;
+        // Counts the time left down between progress updates, which can be a minute apart on a slow disk.
+        _tick = new Timer(_ => { if (Queue.RunningId != null) InvokeAsync(StateHasChanged); }, null, 5000, 5000);
     }
 
     private static string When(Job job) => job switch
@@ -116,5 +123,9 @@ else
         StateHasChanged();
     });
 
-    public void Dispose() => Queue.Changed -= OnChanged;
+    public void Dispose()
+    {
+        Queue.Changed -= OnChanged;
+        _tick?.Dispose();
+    }
 }

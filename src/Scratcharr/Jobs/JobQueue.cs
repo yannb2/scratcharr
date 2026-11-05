@@ -27,6 +27,26 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
 
     public long? RunningId { get; private set; }
 
+    /// <summary>Time left and speed of the running job.</summary>
+    public Eta Eta { get; } = new();
+
+    /// <summary>Bytes the running job's 0-100% stands for (a verified copy reads everything back, so twice its size).</summary>
+    private long _workBytes;
+
+    /// <summary>"about 4 min left · 210 MB/s" for the running job; empty until there is enough to go on.</summary>
+    public string Remaining(DateTime? nowUtc = null)
+    {
+        var now = nowUtc ?? DateTime.UtcNow;
+        if (RunningId == null || Eta.Left(now) is not { } left)
+        {
+            return "";
+        }
+
+        return Eta.Speed(_workBytes, now) is { } speed and > 0
+            ? $"{Eta.Text(left)} · {Eta.SpeedText(speed)}"
+            : Eta.Text(left);
+    }
+
     public event Action? Changed;
 
     public IReadOnlyList<Job> Jobs() => store.Jobs();
@@ -161,6 +181,8 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         store.UpdateJob(job);
         RunningId = job.Id;
         Progress = 0;
+        Eta.Reset();
+        _workBytes = job.Kind == JobKind.Copy && _options.VerifyCopies ? job.Size * 2 : job.Size;
         _lastSent = DateTime.MinValue;
         Changed?.Invoke();
 
@@ -226,6 +248,7 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         {
             Progress = percent;
             _lastSent = DateTime.UtcNow;
+            Eta.Add(percent, _lastSent);
             Changed?.Invoke();
         }
     }

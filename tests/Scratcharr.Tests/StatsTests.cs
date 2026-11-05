@@ -42,5 +42,8 @@ public sealed class StatsTests
         Assert.AreEqual("Idle, 1 done today", idle.JobStatus);
         Assert.AreEqual("500 GB free (50%)", idle.Space);
         Assert.AreEqual("Idle", Stats.From(null, false, tools).JobStatus);
+
+        var timed = Stats.From(scan, false, tools, 1, [], [Job("Disc", JobState.Running, JobKind.Unpack)], 42, null, Now, "about 4 min left · 210 MB/s");
+        Assert.AreEqual("Unpacking Disc · 42%, about 4 min left", timed.JobStatus);
     }
 }
