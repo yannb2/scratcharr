@@ -1,3 +1,4 @@
+using Arrkit.Files;
 using Scratcharr.Jobs;
 using Scratcharr.Options;
 using Scratcharr.Scan;
@@ -29,8 +30,8 @@ public enum UsbKind
 public sealed record UsbEntry(string Path, string Name, bool IsDirectory, long Size, int Files, UsbKind Kind, DateTime Modified,
     string? Unreadable = null, bool Partial = false, int Archives = 0);
 
-/// <summary>A USB disk: one folder under the USB root, with the free and total space of the mount it sits on.</summary>
-public sealed record UsbDisk(string Path, string Name, long Free, long Total, bool Mounted);
+/// <summary>A USB disk or share: one folder under the USB root with a disk in it, with the free and total space of its mount.</summary>
+public sealed record UsbDisk(string Path, string Name, long Free, long Total);
 
 /// <summary>The checks before a copy from USB is queued, and again right before it runs.</summary>
 public static class CopyPlan
@@ -38,18 +39,25 @@ public static class CopyPlan
     public const string PartialSuffix = ".copying";
 
     /// <summary>The disks and shares under the USB root (/mnt/pc/usb01...), or none when the root is missing.</summary>
-    public static IReadOnlyList<UsbDisk> Disks(ScratcharrOptions options)
+    public static IReadOnlyList<UsbDisk> Disks(ScratcharrOptions options) => Disks(options, Mounts.Points());
+
+    /// <summary>
+    /// The disks and shares under the USB root that are there now. An unplugged disk's folder (empty, on the USB root's
+    /// own mount) is left out, so Refresh adds and removes disks as they are plugged in and out.
+    /// </summary>
+    /// <param name="points">The container's mount points; null when they can't be read (then every folder is listed).</param>
+    public static IReadOnlyList<UsbDisk> Disks(ScratcharrOptions options, IReadOnlyList<string>? points)
     {
         if (!Directory.Exists(options.UsbRoot))
         {
             return [];
         }
 
-        var rootDevice = Device(options.UsbRoot);
-        return Directory.GetDirectories(options.UsbRoot)
+        var folders = Directory.GetDirectories(options.UsbRoot)
             .Where(d => !IsLink(d))
             .Where(d => System.IO.Path.GetFileName(d) is var name && !name.StartsWith('.')
-                        && !options.UsbSkip.Contains(name, StringComparer.OrdinalIgnoreCase))
+                        && !options.UsbSkip.Contains(name, StringComparer.OrdinalIgnoreCase));
+        return Mounts.WithDisk(folders, points)
             .Order(StringComparer.OrdinalIgnoreCase)
             .Select(d =>
             {
@@ -65,18 +73,7 @@ public static class CopyPlan
                     // Unknown: shown without a size.
                 }
 
-                // An empty mount point (the disk is unplugged) sits on the same mount as the USB root.
-                bool mounted;
-                try
-                {
-                    mounted = rootDevice == null || Device(d) != rootDevice || Directory.EnumerateFileSystemEntries(d).Any();
-                }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-                {
-                    mounted = true; // There is something there, it just can't be listed: the folder page says why.
-                }
-
-                return new UsbDisk(d, System.IO.Path.GetFileName(d), free, total, mounted);
+                return new UsbDisk(d, System.IO.Path.GetFileName(d), free, total);
             })
             .ToList();
     }
@@ -277,7 +274,4 @@ public static class CopyPlan
             return true;
         }
     }
-
-    /// <summary>The mount a path sits on, to tell a mounted disk from an empty mount point.</summary>
-    private static string? Device(string path) => Mounts.Of(path);
 }

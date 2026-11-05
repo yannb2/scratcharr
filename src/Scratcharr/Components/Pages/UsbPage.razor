@@ -36,7 +36,7 @@ else if (Path == null)
 {
     @if (_disks.Count == 0)
     {
-        <p class="text-body-secondary">No disks in <code>@O.UsbRoot</code>.</p>
+        <p class="text-body-secondary">No disk or share is plugged in under <code>@O.UsbRoot</code>.</p>
     }
     <div class="row g-3">
         @foreach (var disk in _disks)
@@ -45,14 +45,10 @@ else if (Path == null)
                 <a class="card h-100 text-decoration-none" href="@Browse(disk.Path)">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-hdd fs-4 @(disk.Mounted ? "text-primary" : "text-body-secondary")"></i>
+                            <i class="bi bi-hdd fs-4 text-primary"></i>
                             <span class="fw-semibold fs-5">@disk.Name</span>
-                            @if (!disk.Mounted)
-                            {
-                                <span class="badge text-bg-secondary ms-auto">not mounted</span>
-                            }
                         </div>
-                        @if (disk.Mounted && disk.Total > 0)
+                        @if (disk.Total > 0)
                         {
                             var used = disk.Total - disk.Free;
                             <div class="progress mt-2" style="height: .5rem" role="progressbar" aria-label="Used space">
