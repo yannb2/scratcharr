@@ -106,8 +106,9 @@ because SABnzbd unpacks its own jobs.
 
 ### External (USB disks and shares)
 
-The page lists the folders in `/mnt/pc` (one per USB disk or PC share, except `iso-mounts`; an empty mount point
-shows as *not mounted*) and lets you browse them. A file or folder the container can't read, such as Windows'
+The page lists the folders in `/mnt/pc` (one per USB disk or PC share, except `iso-mounts`) that have a disk in them: an unplugged
+disk's mount point (an empty folder on `/mnt/pc`'s own mount) is not listed, and **Refresh** adds or removes disks as they are
+plugged in or out and lets you browse them. A file or folder the container can't read, such as Windows'
 `System Volume Information`, is listed in red and can't be ticked; click its name to see the error. **Auto** sends ISO files and folders holding a BDMV folder or an ISO to `/downloads/discs/` (Ripparr),
 and everything else to `/downloads/import/` (Manual Import in Radarr or Sonarr); the menu can force one or the other.
 Each ticked entry becomes one copy job, keeping its name.

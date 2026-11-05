@@ -171,8 +171,12 @@ public sealed class UsbTests
         File("pc/usb01/Film.mkv");
         Directory.CreateDirectory(Path.Combine(_usb, "usb02"));
         File("pc/iso-mounts/Movie/BDMV/index.bdmv");
-        var disks = CopyPlan.Disks(Options());
-        Assert.AreEqual("usb01:True|usb02:False", string.Join("|", disks.Select(d => $"{d.Name}:{d.Mounted}")));
+        Directory.CreateDirectory(Path.Combine(_usb, "usb03"));
+        var options = Options();
+        // usb02 is an unplugged disk (empty, on the USB root's mount); usb03 is an empty disk mounted on its own.
+        string[] points = ["/", options.UsbRoot, Path.Combine(options.UsbRoot, "usb03")];
+        Assert.AreEqual("usb01|usb03", string.Join("|", CopyPlan.Disks(options, points).Select(d => d.Name)));
+        Assert.AreEqual("usb01|usb02|usb03", string.Join("|", CopyPlan.Disks(options, null).Select(d => d.Name)), "no mount table: list them all");
         var missing = Options();
         missing.UsbRoot = Path.Combine(_root, "missing");
         Assert.IsEmpty(CopyPlan.Disks(missing));

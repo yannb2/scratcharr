@@ -1,3 +1,4 @@
+using Arrkit.Files;
 using Microsoft.Extensions.Options;
 using Scratcharr.Clients;
 using Scratcharr.Jobs;
