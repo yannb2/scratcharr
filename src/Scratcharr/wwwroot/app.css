@@ -842,6 +842,26 @@ h2:focus {
     font-size: 0.875rem;
 }
 
+/* Sortable headers: a faint up/down icon on every column, a solid caret on the sorted one (same as Ripparr). */
+.sv-sort {
+    color: inherit;
+    white-space: nowrap;
+}
+
+.sv-sort i {
+    font-size: 0.75em;
+    opacity: 0.35;
+}
+
+.sv-sort:hover i,
+.sv-sort-active i {
+    opacity: 1;
+}
+
+.sv-sort-active {
+    color: var(--bs-emphasis-color);
+}
+
 /* Subtitle preview: captions are light text with a dark outline on a transparent background. */
 .sv-caption {
     display: inline-block;
