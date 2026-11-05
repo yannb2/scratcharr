@@ -48,6 +48,7 @@ public sealed class DiskAndSettingsTests
         File("usenet/complete/radarr/Movie.C/c.mkv");
         File("usenet/incomplete/Job/part.rar");
         File("import/home.mkv");
+        File("firefox/subs.zip");
         File("ripparr/work/job-1/stream.hevc");
         File("rips/music/Artist - Album (2001)/01.flac");
         File("film.iso");
@@ -59,6 +60,7 @@ public sealed class DiskAndSettingsTests
             "Downloads::film.iso",
             "Downloads::ripparr",
             "Downloads::rips",
+            "Firefox::subs.zip",
             "Import::home.mkv",
             "Torrents::Something",
             "Torrents::loose.iso",
@@ -131,13 +133,13 @@ public sealed class DiskAndSettingsTests
         var rel = structure.Select(f => $"{Path.GetRelativePath(_root, f.Path)}:{f.Exists}").ToList();
         CollectionAssert.AreEqual(new[]
         {
-            "discs:False", "import:False", "ripparr:False", "rips:False", "torrents:True", "torrents/manual:False", "torrents/radarr:True",
+            "discs:False", "firefox:False", "import:False", "ripparr:False", "rips:False", "torrents:True", "torrents/manual:False", "torrents/radarr:True",
             "usenet/complete:False", "usenet/incomplete:False"
         }, rel, string.Join(" ", rel));
 
         var (made, error) = FolderStructure.Create(options, structure);
         Assert.IsNull(error);
-        Assert.HasCount(7, made);
+        Assert.HasCount(8, made);
         Assert.IsTrue(FolderStructure.Expected(options, report, options.Protected).All(f => f.Exists));
     }
 

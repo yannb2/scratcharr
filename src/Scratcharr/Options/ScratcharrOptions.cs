@@ -102,7 +102,9 @@ public class ScratcharrOptions
         new() { Name = "Usenet, complete", Path = "usenet/complete", Kind = FolderKind.Usenet },
         new() { Name = "Usenet, incomplete", Path = "usenet/incomplete", Kind = FolderKind.UsenetIncomplete },
         new() { Name = "Import", Path = "import", Kind = FolderKind.Manual },
-        new() { Name = "Discs", Path = "discs", Kind = FolderKind.Manual }
+        new() { Name = "Discs", Path = "discs", Kind = FolderKind.Manual },
+        // The Firefox container's download folder (mounted as its ~/Downloads): one item per download, kept until you decide.
+        new() { Name = "Firefox", Path = "firefox", Kind = FolderKind.Manual }
     ];
 
     /// <summary>Other apps' folders in /downloads: Ripparr's work and done folders, the disc rips (Spinarr's albums wait
