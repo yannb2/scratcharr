@@ -292,13 +292,8 @@ else
         var descending = ItemSort.Descending(key, active ? Dir : null);
         var next = active ? !descending : ItemSort.DefaultDescending(key);
         <a href="@Link(sort: key, dir: next == ItemSort.DefaultDescending(key) ? "" : next ? "desc" : "asc")"
-           class="text-reset text-decoration-none text-nowrap" title="Sort @(next ? "descending" : "ascending")">
-            @label
-            @if (active)
-            {
-                <i class="bi @(descending ? "bi-caret-down-fill" : "bi-caret-up-fill") small"></i>
-            }
-        </a>
+           class="sv-sort text-decoration-none @(active ? "sv-sort-active" : "")"
+           title="@(active ? descending ? "Sorted high to low: click for low to high" : "Sorted low to high: click for high to low" : $"Sort by {label}")">@label<i class="bi @(active ? descending ? "bi-caret-down-fill" : "bi-caret-up-fill" : "bi-chevron-expand") ms-1"></i></a>
     };
 
     private string Link(string? view = null, string? verdict = null, string? q = null, string? sort = null, bool clearVerdict = false,
