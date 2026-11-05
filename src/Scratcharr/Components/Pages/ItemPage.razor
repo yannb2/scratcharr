@@ -67,6 +67,17 @@ else
                 </div>
             }
 
+            @if (item.Videos > 0 && item.ReadError == null)
+            {
+                <div class="card mb-3">
+                    <div class="card-body d-flex flex-wrap align-items-center gap-2">
+                        <i class="bi bi-collection-play text-primary"></i>
+                        <span class="me-auto">@(item.Videos == 1 ? "1 video" : $"{item.Videos} videos") inside: bonus features can go into a film's or series' folder as extras.</span>
+                        <a class="btn btn-sm btn-outline-primary" href="extras?from=@Uri.EscapeDataString(item.Path)"><i class="bi bi-box-arrow-in-right me-1"></i>Copy as extras…</a>
+                    </div>
+                </div>
+            }
+
             @foreach (var torrent in report.Torrents)
             {
                 <div class="card mb-3">
