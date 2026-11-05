@@ -64,8 +64,8 @@ app.MapStaticAssets();
 app.MapGet("/health", () => Results.Ok("ok"));
 
 // Counts for a dashboard (Homepage's custom API widget). Read-only, no key.
-app.MapGet("/api/stats", (ScanService scans, ToolStatusService tools, JobQueue jobs, Cleaner cleaner) =>
-    Results.Ok(Stats.From(scans.Last, scans.Scanning, tools, jobs.OpenCount, cleaner.Recycled())));
+app.MapGet("/api/stats", (ScanService scans, ToolStatusService tools, JobQueue jobs, Cleaner cleaner, LiveSettings live) =>
+    Results.Ok(Stats.From(scans.Last, scans.Scanning, tools, jobs.OpenCount, cleaner.Recycled(), jobs.Jobs(), jobs.Progress, live.SpaceAlert)));
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
