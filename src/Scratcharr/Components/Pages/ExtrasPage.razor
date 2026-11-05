@@ -1,0 +1,301 @@
+@page "/extras"
+@inject JobQueue Queue
+@inject Toasts Toasts
+@inject NavigationManager Navigation
+@inject IOptions<ScratcharrOptions> Options
+@using Microsoft.Extensions.Options
+@using Arrkit.Library
+@using Scratcharr.Jobs
+
+<PageTitle>Copy as extras · Scratcharr</PageTitle>
+
+<div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <h2 class="mb-0 me-auto">Copy as extras</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="jobs"><i class="bi bi-list-task me-1"></i>Jobs</a>
+</div>
+<p class="text-body-secondary small">
+    Copies videos (behind the scenes, deleted scenes, trailers…) into a film's or series' folder in the library, each in the
+    folder Jellyfin shows as extras: <code>Heat (1995)/featurettes/Making Of.mkv</code>, or <code>Season 01/featurettes/</code> for a
+    season's extra. The source is only read; each copy is read back and compared, and nothing in the library is overwritten
+    (a different file with the same name makes <code>Name (2)</code>).
+</p>
+
+@if (!O.AllowChanges)
+{
+    <div class="alert alert-secondary small"><i class="bi bi-lock me-1"></i>Changes are off (Scratcharr__AllowChanges): you can plan, not copy.</div>
+}
+
+@if (_error != null)
+{
+    <div class="alert alert-danger small">@_error</div>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body small">
+            <div class="text-body-secondary">From</div>
+            <div class="sv-path text-break">@From</div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header fw-semibold"><i class="bi bi-collection-play me-1"></i>Into</div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Movies or TV">
+                    <button class="btn @(_tv ? "btn-outline-secondary" : "btn-secondary")" @onclick="() => SetTv(false)"><i class="bi bi-film me-1"></i>Movies</button>
+                    <button class="btn @(_tv ? "btn-secondary" : "btn-outline-secondary")" @onclick="() => SetTv(true)"><i class="bi bi-tv me-1"></i>TV</button>
+                </div>
+                <input class="form-control form-control-sm" style="max-width: 18rem" placeholder="Search the library" @bind="_search" @bind:event="oninput"/>
+                <select class="form-select form-select-sm" style="max-width: 30rem" value="@_target" @onchange="PickTarget">
+                    <option value="">@(Matches.Count == 0 ? "No folder matches" : $"Choose a {(_tv ? "series" : "film")} ({Matches.Count})…")</option>
+                    @foreach (var folder in Matches.Take(300))
+                    {
+                        <option value="@folder.Path">@folder.Display</option>
+                    }
+                </select>
+            </div>
+            @if (_folders.Count == 0)
+            {
+                <div class="small text-danger mt-2">
+                    Nothing found in @(_tv ? O.TvLibrary : O.MoviesLibrary): mount the library in the container (read-write) at the same path as Radarr and Sonarr.
+                </div>
+            }
+            else if (_target.Length > 0)
+            {
+                <div class="small mt-2"><i class="bi bi-folder-check text-success me-1"></i><span class="sv-path">@_target</span></div>
+            }
+        </div>
+    </div>
+
+    @if (_rows.Count == 0)
+    {
+        <div class="alert alert-secondary small">No video files here (@string.Join(", ", VideoFiles.Extensions)).</div>
+    }
+    else
+    {
+        <div class="card mb-3">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                    <tr>
+                        <th style="width: 2rem">
+                            <input class="form-check-input" type="checkbox" aria-label="Tick all" checked="@_rows.All(r => r.Included)"
+                                   @onchange="e => TickAll(e.Value is true)"/>
+                        </th>
+                        <th>File</th>
+                        <th>Type</th>
+                        <th>Name</th>
+                        @if (_tv)
+                        {
+                            <th style="width: 7rem" title="Empty: next to the seasons. 0: Specials.">Season</th>
+                        }
+                        <th>Goes to</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        var step = Step(row);
+                        <tr class="@(row.Included ? "" : "text-body-secondary")">
+                            <td><input class="form-check-input" type="checkbox" aria-label="Copy @row.Relative" @bind="row.Included" @bind:after="Replan"/></td>
+                            <td class="small text-break">
+                                @row.Relative
+                                <span class="d-block text-body-secondary">@Format.Size(row.Size)@(row.Sample ? " · sample" : "")</span>
+                            </td>
+                            <td>
+                                <select class="form-select form-select-sm" style="min-width: 10rem" @bind="row.Type" @bind:after="Replan">
+                                    @foreach (var type in ExtraTypes.All)
+                                    {
+                                        <option value="@type.Folder">@type.Label</option>
+                                    }
+                                </select>
+                            </td>
+                            <td><input class="form-control form-control-sm" style="min-width: 12rem" @bind="row.Name" @bind:after="Replan"/></td>
+                            @if (_tv)
+                            {
+                                <td><input class="form-control form-control-sm" type="number" min="0" placeholder="—" @bind="row.Season" @bind:after="Replan"/></td>
+                            }
+                            <td class="small">
+                                @if (!row.Included)
+                                {
+                                    <span>Not copied</span>
+                                }
+                                else if (step == null)
+                                {
+                                    <span class="text-body-secondary">Choose the folder</span>
+                                }
+                                else
+                                {
+                                    <span class="sv-path text-break d-block">@step.Relative</span>
+                                    @switch (step.State)
+                                    {
+                                        case ExtraStepState.Renamed:
+                                            <span class="badge text-bg-warning" title="Another file has this name: this one gets a number">New name</span>
+                                            break;
+                                        case ExtraStepState.AlreadyThere:
+                                            <span class="badge text-bg-success" title="A file with this name and size is there: skipped">Already there</span>
+                                            break;
+                                        case ExtraStepState.Problem:
+                                            <span class="text-danger">@step.Problem</span>
+                                            break;
+                                    }
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="small me-auto">
+                @if (_steps.Count > 0)
+                {
+                    <strong>@_steps.Count(s => s.ToCopy) to copy</strong><span>, @Format.Size(_steps.Where(s => s.ToCopy).Sum(s => s.Size))</span>
+                    @if (_steps.Count(s => s.State == ExtraStepState.AlreadyThere) is > 0 and var there)
+                    {
+                        <span class="text-body-secondary">, @there already there</span>
+                    }
+                }
+            </span>
+            <button class="btn btn-primary" disabled="@(!O.AllowChanges || _target.Length == 0 || !_steps.Any(s => s.ToCopy) || _steps.Any(s => s.State == ExtraStepState.Problem))"
+                    @onclick="QueueCopy">
+                <i class="bi bi-box-arrow-in-right me-1"></i>Copy @(_steps.Count(s => s.ToCopy) is var n && n == 1 ? "1 extra" : $"{n} extras")
+            </button>
+        </div>
+    }
+}
+
+@code {
+    /// <summary>The file or folder to copy from: in the downloads or on an external disk.</summary>
+    [SupplyParameterFromQuery] public string? From { get; set; }
+
+    private sealed class Row
+    {
+        public required string Source { get; init; }
+        public required string Relative { get; init; }
+        public long Size { get; init; }
+        public bool Sample { get; init; }
+        public bool Included { get; set; }
+        public string Type { get; set; } = ExtraTypes.Default;
+        public string Name { get; set; } = "";
+        public int? Season { get; set; }
+    }
+
+    private ScratcharrOptions O => Options.Value;
+    private string? _error;
+    private List<Row> _rows = [];
+    private List<LibraryFolder> _folders = [];
+    private List<ExtraStep> _steps = [];
+    private bool _tv;
+    private string _search = "";
+    private string _target = "";
+
+    private List<LibraryFolder> Matches => _folders
+        .Where(f => f.Tv == _tv && (_search.Length == 0 || Key(f.Name).Contains(Key(_search), StringComparison.Ordinal)))
+        .ToList();
+
+    private static string Key(string text) => new(text.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    protected override void OnParametersSet()
+    {
+        _error = null;
+        if (string.IsNullOrEmpty(From) || !ExtrasJob.AllowedSource(O, Paths.Clean(From)) || From.Contains("/../"))
+        {
+            _error = $"Open this page from a download or from the External page: extras come from {O.DownloadsRoot} or {O.UsbRoot}.";
+            return;
+        }
+
+        var from = Paths.Clean(From);
+        var baseFolder = File.Exists(from) ? Path.GetDirectoryName(from)! : from;
+        _rows = VideoFiles.In(from).Select(path =>
+        {
+            var sample = VideoFiles.IsSample(path);
+            return new Row
+            {
+                Source = path,
+                Relative = Path.GetRelativePath(baseFolder, path),
+                Size = new FileInfo(path).Length,
+                Sample = sample,
+                Included = !sample,
+                Type = ExtraTypes.Guess(path) ?? ExtraTypes.Default,
+                Name = FileNames.ExtraName(path),
+                Season = SeasonOf(path)
+            };
+        }).ToList();
+        _folders = LibraryFolders.List(O.LibraryRoots);
+        _tv = _rows.Any(r => r.Season != null);
+        _search = GuessTitle(from);
+        if (Matches.Count == 0)
+        {
+            _search = "";
+        }
+
+        if (Matches.Count == 1)
+        {
+            _target = Matches[0].Path;
+        }
+
+        Replan();
+    }
+
+    /// <summary>"Heat 1995 Bonus Disc" from "Heat.1995.Bonus.Disc.1080p": the words before the year, for the search box.</summary>
+    private static string GuessTitle(string path)
+    {
+        var name = Path.GetFileNameWithoutExtension(path).Replace('.', ' ').Replace('_', ' ');
+        var match = System.Text.RegularExpressions.Regex.Match(name, @"^(?<title>.+?)[\s(\[]+(19|20)\d{2}\b");
+        return match.Success ? match.Groups["title"].Value.Trim() : "";
+    }
+
+    /// <summary>S01 in the file or folder name ("Show.S01.Extras", "Season 2").</summary>
+    private static int? SeasonOf(string path)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(path, @"(?i)\b(?:s(?<n>\d{1,2})(?:e\d+)?|season[\s._]?(?<n>\d{1,2}))\b");
+        return match.Success ? int.Parse(match.Groups["n"].Value) : null;
+    }
+
+    private ExtraStep? Step(Row row) => _steps.FirstOrDefault(s => s.File.Source == row.Source);
+
+    private IEnumerable<ExtraFile> Files => _rows.Where(r => r.Included)
+        .Select(r => new ExtraFile(r.Source, r.Type, r.Name, _tv ? r.Season : null));
+
+    private void Replan() => _steps = _target.Length == 0 ? [] : Queue.PlanExtras(_target, Files);
+
+    private void SetTv(bool tv)
+    {
+        _tv = tv;
+        _target = "";
+        Replan();
+    }
+
+    private void PickTarget(ChangeEventArgs e)
+    {
+        _target = e.Value as string ?? "";
+        Replan();
+    }
+
+    private void TickAll(bool on)
+    {
+        foreach (var row in _rows)
+        {
+            row.Included = on;
+        }
+
+        Replan();
+    }
+
+    private void QueueCopy()
+    {
+        var problem = Queue.QueueExtras(From!, _target, Files.ToList());
+        if (problem != null)
+        {
+            Toasts.Error(problem);
+            return;
+        }
+
+        Toasts.Success($"Queued: extras into {Path.GetFileName(_target)}.");
+        Navigation.NavigateTo("jobs");
+    }
+}

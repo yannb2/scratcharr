@@ -48,11 +48,6 @@ public sealed record DiskFile(string RelativePath, long Size, DateTime Modified)
 /// <summary>Walks the watched folders and measures each entry. Reads only metadata, never file contents.</summary>
 public static class DiskScanner
 {
-    private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mkv", ".mp4", ".m4v", ".avi", ".ts", ".m2ts", ".mov", ".wmv", ".mpg", ".mpeg", ".webm"
-    };
-
     /// <param name="categories">Folder names that hold one item per entry (radarr, sonarr, manual, the clients' categories).</param>
     /// <param name="protectedFolders">The protected folders in force (Settings page or environment); null = the options' own.</param>
     public static List<DiskItem> Scan(ScratcharrOptions options, IReadOnlySet<string> categories, CancellationToken cancellationToken,
@@ -215,7 +210,7 @@ public static class DiskScanner
 
     public static bool IsPart(string name) => name.EndsWith(".!qB", StringComparison.OrdinalIgnoreCase);
 
-    public static bool IsVideo(string name) => VideoExtensions.Contains(System.IO.Path.GetExtension(name));
+    public static bool IsVideo(string name) => Arrkit.Library.VideoFiles.IsVideo(name);
 
     /// <summary>
     /// The file that starts an archive set: name.rar (old style, with .r00 parts), name.part1.rar /

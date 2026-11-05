@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Arrkit.Library;
 using Microsoft.Extensions.Options;
 using Scratcharr.Options;
 using Scratcharr.Scan;
@@ -107,6 +108,38 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         return null;
     }
 
+    /// <summary>The plan for copying videos as extras into a film's or series' folder (reads the disk only).</summary>
+    public List<ExtraStep> PlanExtras(string titleFolder, IEnumerable<ExtraFile> files) =>
+        ExtrasPlan.Make(_options.LibraryRoots, titleFolder, files);
+
+    /// <summary>Queues copying videos as extras into a library folder; returns the problem instead when one stops it.</summary>
+    public string? QueueExtras(string source, string titleFolder, IReadOnlyList<ExtraFile> files)
+    {
+        source = Paths.Clean(source);
+        titleFolder = Paths.Clean(titleFolder);
+        var steps = PlanExtras(titleFolder, files);
+        var problem = ExtrasJob.Problem(_options, source, titleFolder, steps, store.Jobs(0));
+        if (problem != null)
+        {
+            return problem;
+        }
+
+        var id = store.AddJob(new Job
+        {
+            Kind = JobKind.Extras,
+            Source = source,
+            Target = titleFolder,
+            State = JobState.Queued,
+            Created = DateTime.UtcNow,
+            Size = steps.Where(s => s.ToCopy).Sum(s => s.Size)
+        });
+        store.SetSetting(ExtrasJob.Key(id), ExtrasJob.Save(files));
+        logger.LogInformation("Queued extras {Id}: {Count} from {Source} -> {Target}", id, files.Count, source, titleFolder);
+        _queue.Writer.TryWrite(id);
+        Changed?.Invoke();
+        return null;
+    }
+
     /// <summary>Stops a running job, or takes a queued one out of the queue.</summary>
     public void Cancel(long id)
     {
@@ -124,6 +157,7 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
             // A copy waiting to carry on after a restart has a partial copy: it goes too.
             Clean(job.Partial);
             ForgetCopied(job.Id);
+            ForgetExtras(job.Id);
             store.UpdateJob(job with { State = JobState.Cancelled, Finished = DateTime.UtcNow, Message = "Cancelled before it started." });
             Changed?.Invoke();
         }
@@ -182,15 +216,18 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         RunningId = job.Id;
         Progress = 0;
         Eta.Reset();
-        _workBytes = job.Kind == JobKind.Copy && _options.VerifyCopies ? job.Size * 2 : job.Size;
+        _workBytes = job.Kind is JobKind.Copy or JobKind.Extras && _options.VerifyCopies ? job.Size * 2 : job.Size;
         _lastSent = DateTime.MinValue;
         Changed?.Invoke();
 
         try
         {
-            job = job.Kind == JobKind.Copy
-                ? await CopyAsync(job, partial, Log, cancel.Token)
-                : await UnpackAsync(job, partial, log, Log, cancel.Token);
+            job = job.Kind switch
+            {
+                JobKind.Copy => await CopyAsync(job, partial, Log, cancel.Token),
+                JobKind.Extras => await ExtrasAsync(job, Log, cancel.Token),
+                _ => await UnpackAsync(job, partial, log, Log, cancel.Token)
+            };
             if (job.State == JobState.Done)
             {
                 Progress = 100;
@@ -211,14 +248,29 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         {
             Clean(partial);
             ForgetCopied(job.Id);
-            job = job with { State = JobState.Cancelled, Message = "Cancelled." };
+            ForgetExtras(job.Id);
+            job = job with
+            {
+                State = JobState.Cancelled,
+                Message = job.Kind == JobKind.Extras ? "Cancelled. The extras copied before it stay in the library." : "Cancelled."
+            };
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             Log(e.Message);
             Clean(partial);
             ForgetCopied(job.Id);
-            job = job with { State = JobState.Failed, Message = job.Kind == JobKind.Copy ? CopyReason(e) : SevenZip.Reason(1, e.Message) };
+            ForgetExtras(job.Id);
+            job = job with
+            {
+                State = JobState.Failed,
+                Message = job.Kind switch
+                {
+                    JobKind.Copy => CopyReason(e),
+                    JobKind.Extras => ExtrasCopier.Reason(e),
+                    _ => SevenZip.Reason(1, e.Message)
+                }
+            };
         }
         finally
         {
@@ -343,6 +395,48 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         };
     }
 
+    private async Task<Job> ExtrasAsync(Job job, Action<string> Log, CancellationToken ct)
+    {
+        var files = ExtrasJob.Load(store.Setting(ExtrasJob.Key(job.Id)));
+        if (files.Count == 0)
+        {
+            return job with { State = JobState.Failed, Message = "The list of extras was lost: queue them again." };
+        }
+
+        // Planned again: the library may have changed while it waited. What is there already (also after a restart) is skipped.
+        var steps = PlanExtras(job.Target, files);
+        if (steps.FirstOrDefault(s => s.State == ExtraStepState.Problem) is { } bad)
+        {
+            ForgetExtras(job.Id);
+            return job with { State = JobState.Failed, Message = $"{Path.GetFileName(bad.File.Source)}: {bad.Problem}" };
+        }
+
+        _workBytes = steps.Where(s => s.ToCopy).Sum(s => s.Size) * (_options.VerifyCopies ? 2 : 1);
+        Log($"Extras: {files.Count} into {job.Target}{(_options.VerifyCopies ? ", each read back and compared" : "")}");
+        var result = await ExtrasCopier.CopyAsync(steps, _options.VerifyCopies,
+            (done, total) => Report(total == 0 ? 100 : (int)(done * 100 / total)), Log, ct);
+        ForgetExtras(job.Id);
+        foreach (var (step, target) in result.Placed)
+        {
+            Log($"{Path.GetFileName(step.File.Source)} -> {Path.GetRelativePath(job.Target, target)}");
+        }
+
+        return job with
+        {
+            State = result.Ok ? JobState.Done : JobState.Failed,
+            Size = result.Bytes,
+            Message = result.Summary + (result.Ok && result.Copied > 0 ? " Jellyfin shows them after its next scan of the folder." : "")
+        };
+    }
+
+    private void ForgetExtras(long id)
+    {
+        if (store.Setting(ExtrasJob.Key(id)) != null)
+        {
+            store.SetSetting(ExtrasJob.Key(id), null);
+        }
+    }
+
     /// <summary>A failed copy in plain words.</summary>
     private static string CopyReason(Exception e) => e.Message switch
     {
@@ -354,9 +448,12 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         _ => e.Message
     };
 
-    private static string Interrupted(Job job) => job.Kind == JobKind.Copy
-        ? "Scratcharr stopped while it ran: the copy carries on from the files it had not finished."
-        : "Scratcharr stopped while it ran: the unpack starts again.";
+    private static string Interrupted(Job job) => job.Kind switch
+    {
+        JobKind.Copy => "Scratcharr stopped while it ran: the copy carries on from the files it had not finished.",
+        JobKind.Extras => "Scratcharr stopped while it ran: the extras already in the library are skipped, the rest are copied.",
+        _ => "Scratcharr stopped while it ran: the unpack starts again."
+    };
 
     /// <summary>The settings key holding the files a copy job finished, one <see cref="CopiedFile.Line"/> each.</summary>
     private static string CopiedKey(long id) => $"job.{id}.copied";

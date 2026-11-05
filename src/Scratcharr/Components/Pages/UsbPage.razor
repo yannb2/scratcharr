@@ -153,6 +153,12 @@ else
                                 {
                                     <span class="@(entry.Unreadable == null ? "text-body-secondary" : "") ms-1">@(entry.Files == 1 ? "1 file" : $"{entry.Files} files")@(entry.Partial ? "+" : "")</span>
                                 }
+                                @if (entry.Unreadable == null && (entry.Kind == UsbKind.Video || entry.IsDirectory && entry.Kind == UsbKind.Folder))
+                                {
+                                    <a class="ms-1 text-nowrap" href="extras?from=@Uri.EscapeDataString(entry.Path)" title="Copy into a film's or series' folder as extras (featurettes, trailers…)">
+                                        <i class="bi bi-collection-play me-1"></i>As extras
+                                    </a>
+                                }
                                 @if (entry.Archives > 0 && entry.Unreadable == null)
                                 {
                                     <a class="ms-1 text-nowrap" href="unpack?from=@Uri.EscapeDataString(entry.Path)" title="Unpack into @Rel(O.DiscsFolder)/ for Ripparr">

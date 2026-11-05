@@ -68,6 +68,7 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | `ImportFolder` | `import` | Where External copies put videos and other files, for Manual Import in Radarr or Sonarr |
 | `UsbRoot` | `/mnt/pc` | The External page's root: USB disks and mounted shares, one folder each; mount it `:ro,rslave` |
 | `UsbSkip__N` | `iso-mounts` | Folders in `/mnt/pc` that are not disks (Ripparr's ISO mounts): not listed |
+| `MoviesLibrary` / `TvLibrary` | `/movies` / `/tv` | The library, for Copy as extras: mount them read-write at the same paths as Radarr and Sonarr |
 | `VerifyCopies` | true | Read each copy back and compare its xxHash with the original's before it gets its real name |
 | `RecycleFolder` | `.recycle` | Where Recycle moves items, `<date>/<path inside /downloads>` |
 | `RecycleDays` | 7 | Days before a recycled item is deleted for good (checked hourly) |
@@ -127,6 +128,24 @@ deleted from the source, which stays mounted `:ro`. Before queuing, and again ri
 **Unpack from External:** an archive set on an external disk or share (a `.rar` set, `.7z` or `.zip`, or a folder
 holding some) shows an *Unpack* link in the Holds column. It opens the Unpack page for just those archives, which
 unpack into `/downloads/discs/<name>` exactly like the ones in the downloads. The archive is only read.
+
+### Copy as extras
+
+Bonus features (behind the scenes, deleted scenes, trailers, interviews…) that came as a download or sit on an external
+disk can go straight into a film's or series' folder in the library, each in the folder Jellyfin shows as extras:
+`Heat (1995)/featurettes/Making Of.mkv`, or `Season 01/featurettes/` for a season's extra. **Copy as extras…** is on an
+item's page (when it holds videos) and next to each folder or video on the **External** page.
+
+The page lists the videos, ticks all but samples, guesses each one's type from its name ("Teaser" is a trailer, "Making
+Of" behind the scenes, a file in a `Deleted Scenes` folder a deleted scene) and a clean name (`Heat.1995.Making.Of.1080p`
+gives `Making Of`): both can be changed. Pick the film or series (the search starts with the title from the release
+name; Movies or TV); for a series, a season number puts the extra in that season's folder (0 = Specials). The plan shows
+where each file goes. It runs as a job: the source is only read, each file is written under a hidden `.Name.mkv.copying`
+name, read back and compared (`VerifyCopies`), then renamed. Nothing in the library is overwritten: the same name and
+size counts as already there, a different file makes `Name (2).mkv`. A job stopped by a restart carries on, skipping what
+is already there. The types are the folder names Jellyfin and Radarr/Sonarr agree on (`featurettes`, `behind the
+scenes`, `deleted scenes`, `interviews`, `scenes`, `shorts`, `trailers`, `other`, `extras`; not `clips`, which Radarr
+would take for the film). The plan and the copy are arrkit's (`Arrkit.Library`), shared with Ripparr's Extras page.
 
 ### Clean up
 

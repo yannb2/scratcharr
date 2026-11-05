@@ -12,7 +12,7 @@
     <a class="btn btn-sm btn-outline-secondary" href="external"><i class="bi bi-hdd-network me-1"></i>External</a>
 </div>
 <p class="text-body-secondary small">
-    Unpacks and copies from external disks and shares run one at a time. They write into a <code>.unpacking</code> or <code>.copying</code> folder that
+    Unpacks, copies from external disks and shares, and extras copied into the library run one at a time. They write into a <code>.unpacking</code> or <code>.copying</code> folder that
     gets its real name only when everything is there (and, for a copy, checked), so Ripparr and the arr apps never see half a disc.
     A failed or cancelled job removes that folder; the archive or the external source is never touched. When Scratcharr
     stops or the container restarts mid-job, the job waits in the queue: a copy carries on from the files it had not
@@ -32,7 +32,8 @@ else
                 <li class="list-group-item">
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         <span class="badge text-bg-@job.State.Css()">@job.State</span>
-                        <i class="bi @(job.Kind == JobKind.Copy ? "bi-hdd-network" : "bi-file-earmark-zip")" title="@(job.Kind == JobKind.Copy ? "Copy from External" : "Unpack")"></i>
+                        <i class="bi @(job.Kind switch { JobKind.Copy => "bi-hdd-network", JobKind.Extras => "bi-collection-play", _ => "bi-file-earmark-zip" })"
+                           title="@(job.Kind switch { JobKind.Copy => "Copy from External", JobKind.Extras => "Copy as extras", _ => "Unpack" })"></i>
                         <span class="fw-semibold text-break me-auto">@job.Name</span>
                         @if (job.Size > 0)
                         {

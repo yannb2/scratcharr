@@ -52,6 +52,15 @@ public class ScratcharrOptions
     /// <summary>Folders in the USB root that are not disks: Ripparr's ISO mounts. Hidden on the From USB page.</summary>
     public List<string> UsbSkip { get; set; } = ["iso-mounts"];
 
+    /// <summary>The movie library (with its category folders), for "Copy as extras". Mounted read-write at the same path as Radarr's.</summary>
+    public string MoviesLibrary { get; set; } = "/movies";
+
+    /// <summary>The TV library, for "Copy as extras".</summary>
+    public string TvLibrary { get; set; } = "/tv";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<Arrkit.Library.LibraryRoot> LibraryRoots => [new(MoviesLibrary, false), new(TvLibrary, true)];
+
     /// <summary>After a copy from USB, read the copy back and compare its xxHash with the original's.</summary>
     public bool VerifyCopies { get; set; } = true;
 
@@ -147,6 +156,8 @@ public class ScratcharrOptions
         }
 
         UsbRoot = Paths.Clean(System.IO.Path.GetFullPath(UsbRoot));
+        MoviesLibrary = Paths.Clean(System.IO.Path.GetFullPath(MoviesLibrary));
+        TvLibrary = Paths.Clean(System.IO.Path.GetFullPath(TvLibrary));
         if (ScanMinutes < 1)
         {
             ScanMinutes = 1;
