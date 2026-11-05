@@ -110,7 +110,11 @@ shows as *not mounted*) and lets you browse them. A file or folder the container
 and everything else to `/downloads/import/` (Manual Import in Radarr or Sonarr); the menu can force one or the other.
 Each ticked entry becomes one copy job, keeping its name.
 
-The copy goes to `<name>.copying` and is renamed when complete. Each file is hashed (xxHash3) as it is read from the
+The copy goes to `<name>.copying` and is renamed when complete. **A restart doesn't lose a copy:** each file that is
+written and flushed is listed in the job (its length, modified time and xxHash). When Scratcharr stops or the container is
+restarted or killed mid-copy, the job goes back to the queue and carries on: files on the list whose original hasn't
+changed are kept (and still checked against their hash), the file it was in and the rest are copied. An unpack cut
+short starts again (7-Zip can't resume). Each file is hashed (xxHash3) as it is read from the
 source; with `VerifyCopies` on, the copy is then read back and compared, so a bad cable or a failing disk ends in a
 failed job, not a broken file. Modified times are kept; symbolic links are skipped. Copy only: nothing is ever
 deleted from the source, which stays mounted `:ro`. Before queuing, and again right before it runs:

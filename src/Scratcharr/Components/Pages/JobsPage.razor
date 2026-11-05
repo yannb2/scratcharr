@@ -14,7 +14,9 @@
 <p class="text-body-secondary small">
     Unpacks and copies from external disks and shares run one at a time. They write into a <code>.unpacking</code> or <code>.copying</code> folder that
     gets its real name only when everything is there (and, for a copy, checked), so Ripparr and the arr apps never see half a disc.
-    A failed or cancelled job removes that folder; the archive or the external source is never touched.
+    A failed or cancelled job removes that folder; the archive or the external source is never touched. When Scratcharr
+    stops or the container restarts mid-job, the job waits in the queue: a copy carries on from the files it had not
+    finished, an unpack starts again.
 </p>
 
 @if (_jobs.Count == 0)

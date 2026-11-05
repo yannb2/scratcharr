@@ -249,6 +249,83 @@ public sealed class UsbTests
     }
 
     [TestMethod]
+    public async Task A_copy_cut_short_carries_on_from_the_files_it_had_not_finished()
+    {
+        var source = Path.Combine(_usb, "usb01", "Show");
+        File("pc/usb01/Show/S01E01.mkv", 3000, seed: 1);
+        File("pc/usb01/Show/S01E02.mkv", 3000, seed: 2);
+        File("pc/usb01/Show/S01E03.mkv", 3000, seed: 3);
+        var target = Path.Combine(_root, "downloads", "import", "Show.copying");
+
+        // First run: stopped right after the first file is done.
+        var done = new List<CopiedFile>();
+        using (var stop = new CancellationTokenSource())
+        {
+            await Assert.ThrowsAsync<OperationCanceledException>(() => UsbCopy.CopyAsync(source, target, true, (_, _) => { }, _ => { },
+                stop.Token, fileDone: f =>
+                {
+                    done.Add(f);
+                    stop.Cancel();
+                }));
+        }
+
+        Assert.HasCount(1, done);
+        Assert.AreEqual("S01E01.mkv", done[0].Path);
+        Assert.AreEqual(done[0], CopiedFile.Parse(done[0].Line));
+
+        // A half-written second file is copied again; the first one is kept.
+        System.IO.File.WriteAllBytes(Path.Combine(target, "S01E02.mkv"), new byte[100]);
+        var log = new List<string>();
+        var result = await UsbCopy.CopyAsync(source, target, true, (_, _) => { }, log.Add, CancellationToken.None, done);
+        Assert.AreEqual(1, result.Resumed);
+        Assert.IsTrue(result.Verified);
+        Assert.IsFalse(log.Any(l => l.Contains("Copy S01E01", StringComparison.Ordinal)), string.Join("|", log));
+        foreach (var name in new[] { "S01E01.mkv", "S01E02.mkv", "S01E03.mkv" })
+        {
+            CollectionAssert.AreEqual(System.IO.File.ReadAllBytes(Path.Combine(source, name)), System.IO.File.ReadAllBytes(Path.Combine(target, name)), name);
+        }
+
+        // An original that changed since is copied again.
+        System.IO.File.SetLastWriteTimeUtc(Path.Combine(source, "S01E01.mkv"), DateTime.UtcNow.AddDays(-1));
+        Assert.AreEqual(0, (await UsbCopy.CopyAsync(source, target + "2", false, (_, _) => { }, _ => { }, CancellationToken.None, done)).Resumed);
+    }
+
+    [TestMethod]
+    public async Task A_copy_still_running_at_start_up_is_queued_again_and_finishes()
+    {
+        var options = Options();
+        File("pc/usb01/Show/S01E01.mkv", 2000, seed: 1);
+        File("pc/usb01/Show/S01E02.mkv", 2000, seed: 2);
+        var queue = Queue(options);
+        var store = new Store(Path.Combine(_root, "test.db"));
+        var source = Path.Combine(_usb, "usb01", "Show");
+        var target = Path.Combine(options.ImportFolder, "Show");
+        // As the container left it: the job marked running, the first episode copied and listed.
+        var first = new List<CopiedFile>();
+        using (var stop = new CancellationTokenSource())
+        {
+            await Assert.ThrowsAsync<OperationCanceledException>(() => UsbCopy.CopyAsync(source, target + CopyPlan.PartialSuffix, false,
+                (_, _) => { }, _ => { }, stop.Token, fileDone: f =>
+                {
+                    first.Add(f);
+                    stop.Cancel();
+                }));
+        }
+
+        var id = store.AddJob(new Job { Kind = JobKind.Copy, Source = source, Target = target, State = JobState.Running, Created = DateTime.UtcNow, Size = 4000 });
+        store.SetSetting($"job.{id}.copied", first[0].Line + "\n");
+
+        await RunAll(queue, () => { });
+
+        var job = queue.Jobs().Single();
+        Assert.AreEqual(JobState.Done, job.State, job.Message);
+        StringAssert.Contains(job.Message, "1 files kept");
+        Assert.IsTrue(System.IO.File.Exists(Path.Combine(target, "S01E02.mkv")));
+        Assert.IsFalse(Directory.Exists(target + CopyPlan.PartialSuffix));
+        Assert.IsNull(store.Setting($"job.{id}.copied"));
+    }
+
+    [TestMethod]
     public async Task A_copy_that_cannot_finish_leaves_nothing_behind()
     {
         var options = Options();
