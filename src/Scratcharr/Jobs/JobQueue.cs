@@ -101,6 +101,9 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
 
         if (store.Job(id) is { State: JobState.Queued } job)
         {
+            // A copy waiting to carry on after a restart has a partial copy: it goes too.
+            Clean(job.Partial);
+            ForgetCopied(job.Id);
             store.UpdateJob(job with { State = JobState.Cancelled, Finished = DateTime.UtcNow, Message = "Cancelled before it started." });
             Changed?.Invoke();
         }
@@ -108,18 +111,20 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // A job that was running when the app stopped did not finish; queued ones are picked up again.
+        // A job still marked running was cut short (the container was killed): a copy carries on from the next file it
+        // had not finished, an unpack starts again (7-Zip can't resume). Queued ones are picked up again.
         foreach (var job in store.Jobs(0))
         {
             if (job.State == JobState.Running)
             {
-                Clean(job.Partial);
-                store.UpdateJob(job with { State = JobState.Failed, Finished = DateTime.UtcNow, Message = "Scratcharr restarted while it ran." });
+                store.UpdateJob(job with { State = JobState.Queued, Message = Interrupted(job) });
+                if (job.Kind == JobKind.Unpack)
+                {
+                    Clean(job.Partial);
+                }
             }
-            else
-            {
-                _queue.Writer.TryWrite(job.Id);
-            }
+
+            _queue.Writer.TryWrite(job.Id);
         }
 
         await foreach (var id in _queue.Reader.ReadAllAsync(stoppingToken))
@@ -169,15 +174,28 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
                 Progress = 100;
             }
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Scratcharr is stopping (container restart): the job waits in the queue and carries on at the next start.
+            if (job.Kind == JobKind.Unpack)
+            {
+                Clean(partial);
+            }
+
+            Log("Scratcharr stopped.");
+            job = job with { State = JobState.Queued, Message = Interrupted(job) };
+        }
         catch (OperationCanceledException)
         {
             Clean(partial);
-            job = job with { State = JobState.Cancelled, Message = stoppingToken.IsCancellationRequested ? "Scratcharr stopped." : "Cancelled." };
+            ForgetCopied(job.Id);
+            job = job with { State = JobState.Cancelled, Message = "Cancelled." };
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             Log(e.Message);
             Clean(partial);
+            ForgetCopied(job.Id);
             job = job with { State = JobState.Failed, Message = job.Kind == JobKind.Copy ? CopyReason(e) : SevenZip.Reason(1, e.Message) };
         }
         finally
@@ -257,10 +275,23 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(job.Target)!);
-        Clean(partial);
-        Log($"Copy: {job.Source} -> {partial}{(_options.VerifyCopies ? ", then read back and compared" : "")}");
+        var copied = Copied(job.Id);
+        if (copied.Count == 0)
+        {
+            Clean(partial);
+        }
+
+        Log($"Copy: {job.Source} -> {partial}{(_options.VerifyCopies ? ", then read back and compared" : "")}"
+            + (copied.Count > 0 ? $", carrying on after a restart ({copied.Count} files done)" : ""));
+        var list = new System.Text.StringBuilder(store.Setting(CopiedKey(job.Id)) ?? "");
         var result = await UsbCopy.CopyAsync(job.Source, partial, _options.VerifyCopies,
-            (done, total) => Report(total == 0 ? 100 : (int)(done * 100 / total)), Log, ct);
+            (done, total) => Report(total == 0 ? 100 : (int)(done * 100 / total)), Log, ct, copied,
+            file =>
+            {
+                list.Append(file.Line).Append('\n');
+                store.SetSetting(CopiedKey(job.Id), list.ToString());
+            });
+        ForgetCopied(job.Id);
 
         if (Directory.Exists(partial))
         {
@@ -284,7 +315,8 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         {
             State = JobState.Done,
             Size = result.Bytes,
-            Message = $"Copied {what}{(result.Verified ? ", every file checked" : "")}.{where}"
+            Message = $"Copied {what}{(result.Verified ? ", every file checked" : "")}"
+                      + (result.Resumed > 0 ? $", carried on after a restart ({result.Resumed} files kept)" : "") + $".{where}"
         };
     }
 
@@ -298,6 +330,25 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
             "The external disk or share gave a read error (Input/output error). Check the cable, the disk or the share.",
         _ => e.Message
     };
+
+    private static string Interrupted(Job job) => job.Kind == JobKind.Copy
+        ? "Scratcharr stopped while it ran: the copy carries on from the files it had not finished."
+        : "Scratcharr stopped while it ran: the unpack starts again.";
+
+    /// <summary>The settings key holding the files a copy job finished, one <see cref="CopiedFile.Line"/> each.</summary>
+    private static string CopiedKey(long id) => $"job.{id}.copied";
+
+    private IReadOnlyList<CopiedFile> Copied(long id) =>
+        (store.Setting(CopiedKey(id)) ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)
+        .Select(CopiedFile.Parse).OfType<CopiedFile>().ToList();
+
+    private void ForgetCopied(long id)
+    {
+        if (store.Setting(CopiedKey(id)) != null)
+        {
+            store.SetSetting(CopiedKey(id), null);
+        }
+    }
 
     /// <summary>Removes a half-written ".unpacking" or ".copying" folder or file: only ever Scratcharr's own output.</summary>
     private void Clean(string partial)

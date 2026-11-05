@@ -17,7 +17,8 @@
     <ScanButton Scanned="Load"/>
 </div>
 <p class="text-body-secondary small">
-    Archives (<code>.rar</code> sets, <code>.7z</code>, <code>.zip</code>) found in the downloads. Unpack copies what is inside into
+    Archives (<code>.rar</code> sets, <code>.7z</code>, <code>.zip</code>) found in the downloads, or on an external disk or share
+    picked on the <a href="external">External</a> page. Unpack copies what is inside into
     <code>@Options.Value.DiscsFolder/&lt;name&gt;</code>, where Ripparr finds ISOs and BDMV folders. The archive is only read,
     so a torrent keeps seeding.
 </p>
@@ -27,30 +28,48 @@
     <div class="alert alert-secondary small"><i class="bi bi-lock me-1"></i>@UnpackPlan.ChangesOff You can still look inside.</div>
 }
 
-@if (Item != null && _rows.Count > 0)
+@if (From != null)
+{
+    <p class="small"><a href="@ExternalLink"><i class="bi bi-arrow-left me-1"></i>Back to External</a> · <a href="unpack">Archives in the downloads</a></p>
+}
+else if (Item != null && _rows.Count > 0)
 {
     <p class="small"><a href="unpack"><i class="bi bi-arrow-left me-1"></i>All archives</a></p>
 }
 
-@if (Scans.Last == null)
+@if (_fromError != null)
+{
+    <div class="alert alert-danger small">@_fromError</div>
+}
+else if (From == null && Scans.Last == null)
 {
     <p class="text-body-secondary">The first scan is still running.</p>
 }
 else if (_rows.Count == 0)
 {
-    <p class="text-body-secondary">No archives in the downloads@(Item != null ? " item you picked" : "").</p>
+    <p class="text-body-secondary">@(From != null ? $"No archives in {From}." : $"No archives in the downloads{(Item != null ? " item you picked" : "")}.")</p>
 }
 else
 {
-    @foreach (var group in _rows.GroupBy(r => r.Report))
+    @foreach (var group in _rows.GroupBy(r => r.Set.ItemPath))
     {
-        var report = group.Key;
+        var report = group.First().Report;
         <div class="card mb-3">
             <div class="card-header d-flex align-items-center flex-wrap gap-2">
-                <i class="bi @(report.Item.IsDirectory ? "bi-folder" : "bi-file-earmark-zip")"></i>
-                <a class="fw-semibold text-break me-auto" href="item/@report.Id">@report.Item.Name</a>
-                <span class="small text-body-secondary">@report.Item.Folder@(report.Item.Category.Length > 0 ? $" / {report.Item.Category}" : "")</span>
-                <VerdictBadge Verdict="report.Verdict"/>
+                @if (report != null)
+                {
+                    <i class="bi @(report.Item.IsDirectory ? "bi-folder" : "bi-file-earmark-zip")"></i>
+                    <a class="fw-semibold text-break me-auto" href="item/@report.Id">@report.Item.Name</a>
+                    <span class="small text-body-secondary">@report.Item.Folder@(report.Item.Category.Length > 0 ? $" / {report.Item.Category}" : "")</span>
+                    <VerdictBadge Verdict="report.Verdict"/>
+                }
+                else
+                {
+                    <i class="bi bi-hdd-network"></i>
+                    <span class="fw-semibold text-break me-auto">@System.IO.Path.GetFileName(group.Key)</span>
+                    <span class="small text-body-secondary sv-path text-break">@group.Key</span>
+                    <span class="badge text-bg-secondary">External</span>
+                }
             </div>
             <ul class="list-group list-group-flush">
                 @foreach (var row in group)
@@ -129,9 +148,18 @@ else
 @code {
     [SupplyParameterFromQuery] public string? Item { get; set; }
 
+    /// <summary>A file or folder under the external root (/mnt/pc) whose archives to list instead of the downloads.</summary>
+    [SupplyParameterFromQuery] public string? From { get; set; }
+
+    private string? _fromError;
+
+    private string ExternalLink => From == null ? "external"
+        : $"external?path={Uri.EscapeDataString(System.IO.Path.GetDirectoryName(From) ?? Options.Value.UsbRoot)}";
+
     private sealed class Row
     {
-        public required ItemReport Report { get; init; }
+        /// <summary>The downloads item holding the set, or null for one on an external disk.</summary>
+        public ItemReport? Report { get; init; }
         public required ArchiveSet Set { get; init; }
         public string Name { get; set; } = "";
         public ArchiveListing? Listing { get; set; }
@@ -159,6 +187,13 @@ else
 
     private void Load()
     {
+        _fromError = null;
+        if (From != null)
+        {
+            LoadExternal();
+            return;
+        }
+
         var items = Scans.Last?.Items ?? [];
         var picked = items.Where(i => UnpackPlan.Offers(i.Item) && (Item == null || i.Id == Item)).ToList();
         var old = _rows.ToDictionary(r => r.Set.Start);
@@ -167,6 +202,25 @@ else
                 old.TryGetValue(set.Start, out var kept)
                     ? new Row { Report = report, Set = set, Name = kept.Name, Listing = kept.Listing, ShowFiles = kept.ShowFiles }
                     : new Row { Report = report, Set = set, Name = set.Name }))
+            .ToList();
+        Mark();
+    }
+
+    private void LoadExternal()
+    {
+        var path = Paths.Clean(System.IO.Path.GetFullPath(From!));
+        if (!UnpackPlan.FromExternal(Options.Value, path) || !(Directory.Exists(path) || File.Exists(path)))
+        {
+            _rows = [];
+            _fromError = $"{From} is not a file or folder under {Options.Value.UsbRoot}.";
+            return;
+        }
+
+        var old = _rows.ToDictionary(r => r.Set.Start);
+        _rows = ArchiveSets.Find(path).Select(set =>
+                old.TryGetValue(set.Start, out var kept)
+                    ? new Row { Set = set, Name = kept.Name, Listing = kept.Listing, ShowFiles = kept.ShowFiles }
+                    : new Row { Set = set, Name = set.Name })
             .ToList();
         Mark();
     }

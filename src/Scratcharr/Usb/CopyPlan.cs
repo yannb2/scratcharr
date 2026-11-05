@@ -27,7 +27,7 @@ public enum UsbKind
 /// can't be read, so it can still be opened.
 /// </summary>
 public sealed record UsbEntry(string Path, string Name, bool IsDirectory, long Size, int Files, UsbKind Kind, DateTime Modified,
-    string? Unreadable = null, bool Partial = false);
+    string? Unreadable = null, bool Partial = false, int Archives = 0);
 
 /// <summary>A USB disk: one folder under the USB root, with the free and total space of the mount it sits on.</summary>
 public sealed record UsbDisk(string Path, string Name, long Free, long Total, bool Mounted);
@@ -99,7 +99,8 @@ public static class CopyPlan
             try
             {
                 var info = new FileInfo(file);
-                entries.Add(new UsbEntry(file, info.Name, false, info.Length, 1, KindOf(file), info.LastWriteTimeUtc));
+                entries.Add(new UsbEntry(file, info.Name, false, info.Length, 1, KindOf(file), info.LastWriteTimeUtc,
+                    Archives: DiskScanner.IsArchiveStart(info.Name) ? 1 : 0));
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -116,7 +117,8 @@ public static class CopyPlan
         try
         {
             var (size, files) = Measure(dir);
-            return new UsbEntry(dir, name, true, size, files, KindOf(dir), Directory.GetLastWriteTimeUtc(dir));
+            return new UsbEntry(dir, name, true, size, files, KindOf(dir), Directory.GetLastWriteTimeUtc(dir),
+                Archives: Unpack.ArchiveSets.Find(dir).Count);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

@@ -18,7 +18,7 @@ the external disks and shares are only read, and nothing is deleted before 7 day
 | Downloads | Every item with its verdict, client state, arr app, seeding time (of its limit), size, age and when it leaves. Every column sorts both ways (click it again to turn it around). Filters and sorting live in the URL. Tick items and Recycle them |
 | Item | The evidence: torrent, SABnzbd job, arr queue and history, the largest files |
 | Unpack | Every archive set (`.partNN.rar`, `.rar` + `.r00`, `.7z`, `.7z.001`, `.zip`) per item: parts, size, Look inside (7-Zip's listing: ISOs, BDMV, videos, unpacked size), a folder name, Unpack |
-| External | The USB disks and mounted shares in `/mnt/pc`, then their folders: what each entry holds (disc, video, other), its size, where it goes, and whether it was copied already. Anything that can't be read (Windows' System Volume Information...) is listed in red: click it for the error. Tick, pick Auto / import / discs, Copy |
+| External | The USB disks and mounted shares in `/mnt/pc`, then their folders: what each entry holds (disc, video, other, archives with an Unpack link), its size, where it goes, and whether it was copied already. Anything that can't be read (Windows' System Volume Information...) is listed in red: click it for the error. Tick, pick Auto / import / discs, Copy |
 | Recycle | What Clean up moved away: days left, Restore, Delete, Empty now; the action log; the weekly ntfy summary (Send now) |
 | Jobs | Unpacks and copies one at a time with a progress bar, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
 | Logs | The last 2000 lines since the app started, newest first, with search and a level filter (shared arrkit code) |
@@ -110,7 +110,11 @@ shows as *not mounted*) and lets you browse them. A file or folder the container
 and everything else to `/downloads/import/` (Manual Import in Radarr or Sonarr); the menu can force one or the other.
 Each ticked entry becomes one copy job, keeping its name.
 
-The copy goes to `<name>.copying` and is renamed when complete. Each file is hashed (xxHash3) as it is read from the
+The copy goes to `<name>.copying` and is renamed when complete. **A restart doesn't lose a copy:** each file that is
+written and flushed is listed in the job (its length, modified time and xxHash). When Scratcharr stops or the container is
+restarted or killed mid-copy, the job goes back to the queue and carries on: files on the list whose original hasn't
+changed are kept (and still checked against their hash), the file it was in and the rest are copied. An unpack cut
+short starts again (7-Zip can't resume). Each file is hashed (xxHash3) as it is read from the
 source; with `VerifyCopies` on, the copy is then read back and compared, so a bad cable or a failing disk ends in a
 failed job, not a broken file. Modified times are kept; symbolic links are skipped. Copy only: nothing is ever
 deleted from the source, which stays mounted `:ro`. Before queuing, and again right before it runs:
@@ -119,6 +123,10 @@ deleted from the source, which stays mounted `:ro`. Before queuing, and again ri
 - The source is under `/mnt/pc` and still there.
 - Nothing by that name exists in the target folder, and no job is copying it already.
 - The size plus 1 GiB fits in the free space.
+
+**Unpack from External:** an archive set on an external disk or share (a `.rar` set, `.7z` or `.zip`, or a folder
+holding some) shows an *Unpack* link in the Holds column. It opens the Unpack page for just those archives, which
+unpack into `/downloads/discs/<name>` exactly like the ones in the downloads. The archive is only read.
 
 ### Clean up
 
