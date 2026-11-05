@@ -143,6 +143,8 @@ public sealed class LiveSettings(IOptions<ScratcharrOptions> options, Store stor
     public const string SonarrKey = "integrations.sonarr";
     public const string LidarrKey = "integrations.lidarr";
     public const string ProtectedKey = "protected.folders";
+    public const string AutoRulesKey = "rules.auto";
+    public const string SpaceAlertKey = "alert.space";
 
     public QbittorrentOptions Qbittorrent => Read(QbittorrentKey, options.Value.Qbittorrent)!;
 
@@ -160,6 +162,12 @@ public sealed class LiveSettings(IOptions<ScratcharrOptions> options, Store stor
     /// </summary>
     public IReadOnlyList<string> Protected => Read<List<string>>(ProtectedKey, null)?.Select(options.Value.Absolute).ToList()
                                               ?? options.Value.Protected;
+
+    /// <summary>The automatic clean-up rules (Settings page); all off until turned on.</summary>
+    public List<Clean.AutoRule> AutoRules => Clean.AutoRules.Complete(Read<List<Clean.AutoRule>>(AutoRulesKey, null));
+
+    /// <summary>The low space alert (Settings page); off until turned on.</summary>
+    public Clean.SpaceAlertSettings SpaceAlert => Read<Clean.SpaceAlertSettings>(SpaceAlertKey, null) ?? new Clean.SpaceAlertSettings();
 
     /// <summary>The protected folders from the environment (or the defaults), which Reset brings back.</summary>
     public IReadOnlyList<string> StartingProtected => options.Value.Protected;

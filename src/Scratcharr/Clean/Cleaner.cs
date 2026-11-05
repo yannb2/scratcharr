@@ -34,7 +34,9 @@ public sealed class Cleaner(
     public IReadOnlyList<ActionEntry> Actions(int limit = 100) => store.Actions(limit);
 
     /// <summary>Scans again, then recycles each item the rules still allow (removing its torrent first when it has one).</summary>
-    public async Task<IReadOnlyList<CleanOutcome>> CleanAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken)
+    /// <param name="reasons">Why each path is cleaned, when it isn't a button press (the auto rules); goes to the action log.</param>
+    public async Task<IReadOnlyList<CleanOutcome>> CleanAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? reasons = null)
     {
         if (!_options.AllowChanges)
         {
@@ -68,7 +70,7 @@ public sealed class Cleaner(
                     continue;
                 }
 
-                outcomes.Add(await CleanOneAsync(report, offer, cancellationToken));
+                outcomes.Add(await CleanOneAsync(report, offer, reasons?.GetValueOrDefault(path), cancellationToken));
             }
         }
         finally
@@ -81,8 +83,9 @@ public sealed class Cleaner(
         return outcomes;
     }
 
-    private async Task<CleanOutcome> CleanOneAsync(ItemReport report, CleanOffer offer, CancellationToken cancellationToken)
+    private async Task<CleanOutcome> CleanOneAsync(ItemReport report, CleanOffer offer, string? reason, CancellationToken cancellationToken)
     {
+        var why = reason == null ? "" : $" ({reason})";
         var item = report.Item;
         var notes = new List<string>();
         try
@@ -91,7 +94,7 @@ public sealed class Cleaner(
             {
                 var names = string.Join(", ", report.Torrents.Select(t => t.Name));
                 await qbittorrent.RemoveAsync(report.Torrents.Select(t => t.Hash).ToList(), cancellationToken);
-                store.AddAction("Remove torrent", item.Path, item.Size, $"qBittorrent: {names} (files kept)");
+                store.AddAction("Remove torrent", item.Path, item.Size, $"qBittorrent: {names} (files kept){why}");
                 notes.Add("torrent removed from qBittorrent");
             }
 
@@ -116,7 +119,7 @@ public sealed class Cleaner(
                 Note = string.Join("; ", notes)
             });
             var shown = Paths.IsUnder(target, _options.DownloadsRoot) ? Path.GetRelativePath(_options.DownloadsRoot, target) : target;
-            store.AddAction("Recycle", item.Path, item.Size, $"{report.Verdict.Label()} → {shown}");
+            store.AddAction("Recycle", item.Path, item.Size, $"{report.Verdict.Label()} → {shown}{why}");
             logger.LogInformation("Recycled {Path} -> {Target}", item.Path, target);
 
             if (report.SabJobs.Count > 0)

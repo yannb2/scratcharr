@@ -4,15 +4,20 @@ using Scratcharr.Scan;
 
 namespace Scratcharr.Clean;
 
-/// <summary>Once an hour: deletes what has been in the recycle folder long enough, and sends the weekly summary when it is due.</summary>
+/// <summary>
+/// Once an hour: deletes what has been in the recycle folder long enough, applies the auto rules, sends the low space
+/// alert and the weekly summary when they are due.
+/// </summary>
 public sealed class CleanupService(
     IOptions<ScratcharrOptions> options,
     Store store,
     ScanService scans,
     Cleaner cleaner,
+    LiveSettings live,
     ILogger<CleanupService> logger) : BackgroundService
 {
     public const string LastSentKey = "summary.lastSent";
+    public const string SpaceAlertSentKey = "alert.space.lastSent";
 
     private readonly ScratcharrOptions _options = options.Value;
 
@@ -37,6 +42,8 @@ public sealed class CleanupService(
                     logger.LogInformation("Purge: deleted {Count} recycled items, {Size}", count, Format.Size(bytes));
                 }
 
+                await AutoCleanAsync(stoppingToken);
+                await SpaceAlertIfDueAsync(stoppingToken);
                 await SummaryIfDueAsync(stoppingToken);
             }
             catch (Exception e) when (e is not OperationCanceledException)
@@ -52,6 +59,102 @@ public sealed class CleanupService(
             {
                 break;
             }
+        }
+    }
+
+    /// <summary>When the auto rules last ran (UTC), for the Settings page.</summary>
+    public DateTime? LastAutoRun { get; private set; }
+
+    /// <summary>
+    /// Applies the auto rules to the last scan; the Cleaner scans again and re-checks every item before moving it.
+    /// Returns what happened (empty when nothing was due or changes are off).
+    /// </summary>
+    public async Task<IReadOnlyList<CleanOutcome>> AutoCleanAsync(CancellationToken cancellationToken)
+    {
+        var rules = live.AutoRules;
+        if (!_options.AllowChanges || !rules.Any(r => r.Enabled) || scans.Last is not { Error: null } scan)
+        {
+            return [];
+        }
+
+        LastAutoRun = DateTime.UtcNow;
+        var due = AutoRules.Due(scan, rules, _options, DateTime.UtcNow);
+        if (due.Count == 0)
+        {
+            return [];
+        }
+
+        var reasons = due.ToDictionary(d => d.Report.Item.Path, d => AutoRules.Reason(d.Rule));
+        var outcomes = await cleaner.CleanAsync(reasons.Keys.ToList(), cancellationToken, reasons);
+        logger.LogInformation("Auto rules: recycled {Done} of {Due} items", outcomes.Count(o => o.Ok), due.Count);
+        foreach (var failed in outcomes.Where(o => !o.Ok))
+        {
+            logger.LogWarning("Auto rules left {Path}: {Message}", failed.Path, failed.Message);
+        }
+
+        return outcomes;
+    }
+
+    /// <summary>When the low space alert last went out (UTC); cleared once there is enough space again.</summary>
+    public DateTime? SpaceAlertSent => store.Setting(SpaceAlertSentKey) is { } text
+        ? DateTime.Parse(text, null, System.Globalization.DateTimeStyles.RoundtripKind)
+        : null;
+
+    private async Task SpaceAlertIfDueAsync(CancellationToken cancellationToken)
+    {
+        var settings = live.SpaceAlert;
+        if (!_options.Ntfy.Configured || scans.Last is not { Error: null, TotalBytes: > 0 } scan)
+        {
+            return;
+        }
+
+        if (!SpaceAlert.Low(scan, settings))
+        {
+            if (SpaceAlertSent != null)
+            {
+                store.SetSetting(SpaceAlertSentKey, null);
+            }
+
+            return;
+        }
+
+        if (SpaceAlert.Due(scan, settings, SpaceAlertSent, DateTime.UtcNow))
+        {
+            await SendSpaceAlertAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>Sends the low space alert now (also the Send a test button); returns the error, or null.</summary>
+    public async Task<string?> SendSpaceAlertAsync(CancellationToken cancellationToken, bool test = false)
+    {
+        if (!_options.Ntfy.Configured)
+        {
+            return "Set Scratcharr__Ntfy__Url (NTFY_URL) to send alerts.";
+        }
+
+        if (scans.Last is not { Error: null, TotalBytes: > 0 } scan)
+        {
+            return "There is no good scan with the free space yet.";
+        }
+
+        var settings = live.SpaceAlert;
+        var text = SpaceAlert.Text(scan, settings, store.Recycled(), _options.RecycleDays);
+        try
+        {
+            await Summary.SendAsync(_options.Ntfy, test ? $"Test: {text}" : text, cancellationToken,
+                "Scratcharr: downloads space is low", "warning,floppy_disk", test ? null : "high");
+            if (!test)
+            {
+                store.SetSetting(SpaceAlertSentKey, DateTime.UtcNow.ToString("O"));
+                logger.LogWarning("Low space alert sent: {Free} free", Format.Size(scan.FreeBytes));
+            }
+
+            return null;
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or InvalidOperationException or UriFormatException)
+        {
+            logger.LogWarning("Low space alert not sent: {Message}", e.Message);
+            return e is TaskCanceledException ? "ntfy did not answer in time." : e.Message;
         }
     }
 
