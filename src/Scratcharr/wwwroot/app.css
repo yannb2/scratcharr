@@ -985,3 +985,18 @@ h2:focus {
     max-height: 24rem;
     overflow: auto;
 }
+
+/* Long release names and paths (no spaces) wrap instead of running out of their box. */
+.alert,
+.toast-body,
+.modal-title,
+.modal-body,
+.card-header,
+h1, h2, h3, h4, h5 {
+    overflow-wrap: anywhere;
+}
+
+.alert .table,
+.modal-body .table {
+    overflow-wrap: normal;
+}

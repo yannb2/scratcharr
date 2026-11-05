@@ -6,7 +6,7 @@
     {
         <div class="toast show align-items-center text-bg-@toast.Kind border-0" role="status">
             <div class="d-flex">
-                <div class="toast-body">
+                <div class="toast-body text-break" style="min-width: 0">
                     <i class="bi @(toast.Kind == "success" ? "bi-check-circle" : "bi-exclamation-triangle") me-2"></i>@toast.Message
                 </div>
                 <button type="button" class="btn-close @(toast.Kind == "warning" ? "" : "btn-close-white") me-2 m-auto" aria-label="Close"

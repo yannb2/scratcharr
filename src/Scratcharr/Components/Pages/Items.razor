@@ -213,8 +213,9 @@ else
     private async Task Clean(List<ItemReport> picked)
     {
         var torrents = picked.Count(i => CleanPlan.Offer(i, Options.Value).Kind == CleanKind.RemoveTorrent);
-        var ok = await _confirm!.Ask($"Recycle {(picked.Count == 1 ? picked[0].Item.Name : $"{picked.Count} items")}?",
-            $"{Format.Size(picked.Sum(i => i.Item.Size))} moves to the recycle folder, kept {Options.Value.RecycleDays:0.#} days."
+        var ok = await _confirm!.Ask(picked.Count == 1 ? "Recycle?" : $"Recycle {picked.Count} items?",
+            (picked.Count == 1 ? $"{picked[0].Item.Name} ({Format.Size(picked[0].Item.Size)})" : Format.Size(picked.Sum(i => i.Item.Size)))
+            + $" moves to the recycle folder, kept {Options.Value.RecycleDays:0.#} days."
             + (torrents > 0 ? $" {torrents} of them still have a torrent in qBittorrent: it is removed first (files kept)." : "")
             + " Each item is checked again right before.",
             "Recycle", danger: torrents > 0);
