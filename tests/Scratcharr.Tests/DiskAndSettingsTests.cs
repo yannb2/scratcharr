@@ -133,13 +133,13 @@ public sealed class DiskAndSettingsTests
         var rel = structure.Select(f => $"{Path.GetRelativePath(_root, f.Path)}:{f.Exists}").ToList();
         CollectionAssert.AreEqual(new[]
         {
-            "discs:False", "import:False", "ripparr:False", "rips:False", "torrents:True", "torrents/manual:False", "torrents/radarr:True",
+            "discs:False", "firefox:False", "import:False", "ripparr:False", "rips:False", "torrents:True", "torrents/manual:False", "torrents/radarr:True",
             "usenet/complete:False", "usenet/incomplete:False"
         }, rel, string.Join(" ", rel));
 
         var (made, error) = FolderStructure.Create(options, structure);
         Assert.IsNull(error);
-        Assert.HasCount(7, made);
+        Assert.HasCount(8, made);
         Assert.IsTrue(FolderStructure.Expected(options, report, options.Protected).All(f => f.Exists));
     }
 
