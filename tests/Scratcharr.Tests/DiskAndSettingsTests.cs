@@ -48,6 +48,7 @@ public sealed class DiskAndSettingsTests
         File("usenet/complete/radarr/Movie.C/c.mkv");
         File("usenet/incomplete/Job/part.rar");
         File("import/home.mkv");
+        File("firefox/subs.zip");
         File("ripparr/work/job-1/stream.hevc");
         File("rips/music/Artist - Album (2001)/01.flac");
         File("film.iso");
@@ -59,6 +60,7 @@ public sealed class DiskAndSettingsTests
             "Downloads::film.iso",
             "Downloads::ripparr",
             "Downloads::rips",
+            "Firefox::subs.zip",
             "Import::home.mkv",
             "Torrents::Something",
             "Torrents::loose.iso",

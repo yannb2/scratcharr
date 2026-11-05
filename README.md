@@ -38,7 +38,7 @@ are opened, so each torrent is its own item. Loose entries at the top of `/downl
 | Seeding done | Stopped at its seeding limit, still listed in qBittorrent |
 | Imported, leftover | An arr app imported it (a copy) and no client owns it any more |
 | Failed | The download or the import failed |
-| Manual | In the `manual` or `prowlarr` category (added by hand, or grabbed from a Prowlarr search) or a folder filled by hand (`import`, `discs`) |
+| Manual | In the `manual` or `prowlarr` category (added by hand, or grabbed from a Prowlarr search) or a folder filled by hand (`import`, `discs`, `firefox` = the Firefox container's downloads) |
 | Half-finished | `.!qB` files that no torrent owns |
 | Stray | Nothing claims it at all |
 | Can't tell | The client that would know (qBittorrent for torrents, SABnzbd for usenet) could not be read |
@@ -59,7 +59,7 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 | Setting | Default | |
 | --- | --- | --- |
 | `DownloadsRoot` | `/downloads` | Only items under it are listed |
-| `Folders__N__Name/Path/Kind` | torrents, usenet/complete, usenet/incomplete, import, discs | Watched folders; `Kind` = Torrents, Usenet, UsenetIncomplete or Manual; paths relative to the root |
+| `Folders__N__Name/Path/Kind` | torrents, usenet/complete, usenet/incomplete, import, discs, firefox | Watched folders; `Kind` = Torrents, Usenet, UsenetIncomplete or Manual; paths relative to the root |
 | `Protected__N` | `ripparr`, `rips`, `.recycle` | Never judged or touched |
 | `CategoryFolders__N` | radarr, sonarr, lidarr, books, manual, prowlarr | Opened even when no client has the category yet |
 | `ScanMinutes` | 15 | Minutes between scans (Scan now starts one at any time) |
