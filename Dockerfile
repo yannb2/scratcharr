@@ -15,7 +15,7 @@ RUN set -eux; \
     install -m 0755 /tmp/7z/7zz /out/7zz; \
     /out/7zz | head -n 3
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-resolute AS build
 WORKDIR /src
 COPY global.json ./
 COPY src/Scratcharr/Scratcharr.csproj src/Scratcharr/
@@ -27,7 +27,7 @@ COPY src/ src/
 COPY arrkit/src/ arrkit/src/
 RUN dotnet publish src/Scratcharr/Scratcharr.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute
 ARG SEVENZIP_VERSION
 
 RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
