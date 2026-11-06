@@ -14,6 +14,9 @@ using Scratcharr.Tools;
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
+// Tools get UTF-8 file names ("Amélie", "Me²"), whatever the container's locale.
+Arrkit.Processes.Utf8Locale.Ensure();
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ASP.NET's data-protection keys (antiforgery tokens) in /config/keys, so they survive an update.
