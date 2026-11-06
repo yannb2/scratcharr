@@ -39,8 +39,11 @@ public sealed record Stats
     public int JobsDone { get; init; }
     public int JobsFailed { get; init; }
 
-    /// <summary>One line for a dashboard: "Copying Big.Show · 42%, 2 queued", "1 failed today", "Idle".</summary>
+    /// <summary>One line for a dashboard: "Copying Big.Show · 42%, 2 queued", "1 failed today", "Idle", "Paused, 2 queued".</summary>
     public string JobStatus { get; init; } = "";
+
+    /// <summary>Pause all is on.</summary>
+    public bool JobsPaused { get; init; }
 
     public long TotalBytes { get; init; }
 
@@ -55,7 +58,7 @@ public sealed record Stats
 
     public static Stats From(ScanResult? scan, bool scanning, ToolStatusService tools, int openJobs = 0,
         IReadOnlyList<Options.RecycledItem>? recycled = null, IReadOnlyList<Scratcharr.Jobs.Job>? jobs = null, int progress = 0,
-        Clean.SpaceAlertSettings? space = null, DateTime? nowUtc = null, string remaining = "")
+        Clean.SpaceAlertSettings? space = null, DateTime? nowUtc = null, string remaining = "", bool paused = false)
     {
         var now = nowUtc ?? DateTime.UtcNow;
         jobs ??= [];
@@ -89,7 +92,8 @@ public sealed record Stats
             JobsRunning = running == null ? 0 : 1,
             JobsDone = done,
             JobsFailed = failed,
-            JobStatus = JobLine(running, progress, queued, done, failed, remaining),
+            JobStatus = JobLine(running, progress, queued, done, failed, remaining, paused),
+            JobsPaused = paused,
             TotalBytes = scan?.TotalBytes ?? 0,
             FreePercent = scan is { TotalBytes: > 0 } s ? Math.Round(Clean.SpaceAlert.FreePercent(s), 1) : 0,
             Space = scan is { TotalBytes: > 0 } t
@@ -99,13 +103,20 @@ public sealed record Stats
         };
     }
 
-    public static string JobLine(Scratcharr.Jobs.Job? running, int progress, int queued, int done, int failed, string remaining = "")
+    public static string JobLine(Scratcharr.Jobs.Job? running, int progress, int queued, int done, int failed, string remaining = "",
+        bool paused = false)
     {
         var parts = new List<string>();
         if (running != null)
         {
-            parts.Add($"{(running.Kind == Scratcharr.Jobs.JobKind.Copy ? "Copying" : "Unpacking")} {running.Name} · {progress}%"
-                      + (remaining.Length > 0 ? $", {remaining.Split(" · ")[0]}" : ""));
+            var verb = running.Kind switch
+            {
+                Scratcharr.Jobs.JobKind.Copy => "Copying",
+                Scratcharr.Jobs.JobKind.Extras => "Copying extras to",
+                _ => "Unpacking"
+            };
+            parts.Add($"{verb} {running.Name} · {progress}%"
+                      + (remaining.Length > 0 && !paused ? $", {remaining.Split(" · ")[0]}" : ""));
         }
 
         if (queued > 0)
@@ -123,6 +134,7 @@ public sealed record Stats
             parts.Add(done > 0 ? $"Idle, {done} done today" : "Idle");
         }
 
-        return string.Join(", ", parts);
+        // Paused with nothing to do still says so: whatever is queued next waits.
+        return (paused ? "Paused: " : "") + string.Join(", ", parts);
     }
 }

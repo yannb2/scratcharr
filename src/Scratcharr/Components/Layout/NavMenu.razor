@@ -41,7 +41,7 @@
             <li class="nav-item">
                 <NavLink class="nav-link" href="jobs" @onclick="Close">
                     <i class="bi bi-list-task"></i>
-                    <span>Jobs@(_jobs > 0 ? $" ({_jobs})" : "")</span>
+                    <span>Jobs@(_jobs > 0 ? $" ({_jobs})" : "")@(_paused ? " · paused" : "")</span>
                 </NavLink>
             </li>
             <li class="nav-item">
@@ -109,6 +109,7 @@
     private int _warnings;
     private int _archives;
     private int _jobs;
+    private bool _paused;
     private int _recycled;
 
     protected override void OnInitialized()
@@ -127,6 +128,7 @@
         _warnings = last?.Settings.Findings.Count(f => f.Severity == Severity.Warning) ?? 0;
         _archives = last?.Items.Count(i => Jobs.UnpackPlan.Offers(i.Item)) ?? 0;
         _jobs = Queue.OpenCount;
+        _paused = Queue.Paused;
         _recycled = Cleaner.Recycled().Count;
     }
 

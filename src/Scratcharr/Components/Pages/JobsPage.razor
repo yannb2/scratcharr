@@ -8,6 +8,15 @@
 
 <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <h2 class="mb-0 me-auto">Jobs</h2>
+    @if (Queue.Paused)
+    {
+        <button class="btn btn-sm btn-success" @onclick="Resume"><i class="bi bi-play-fill me-1"></i>Resume all</button>
+    }
+    else
+    {
+        <button class="btn btn-sm btn-outline-warning" @onclick="Pause"
+                title="No job starts, the running one waits where it is"><i class="bi bi-pause-fill me-1"></i>Pause all</button>
+    }
     <a class="btn btn-sm btn-outline-secondary" href="unpack"><i class="bi bi-file-earmark-zip me-1"></i>Unpack</a>
     <a class="btn btn-sm btn-outline-secondary" href="external"><i class="bi bi-hdd-network me-1"></i>External</a>
 </div>
@@ -16,8 +25,22 @@
     gets its real name only when everything is there (and, for a copy, checked), so Ripparr and the arr apps never see half a disc.
     A failed or cancelled job removes that folder; the archive or the external source is never touched. When Scratcharr
     stops or the container restarts mid-job, the job waits in the queue: a copy carries on from the files it had not
-    finished, an unpack starts again.
+    finished, an unpack starts again. Pause all holds the queue until Resume all, also across a restart: a running copy or
+    unpack waits where it is (its files stay open, so leave the external disk plugged in), a running extras copy goes back to
+    the queue and skips the extras already in the library when it carries on.
 </p>
+
+@if (Queue.Paused)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-pause-circle-fill fs-5"></i>
+        <div class="me-auto">
+            <strong>Paused.</strong>
+            @(PausedText())
+        </div>
+        <button class="btn btn-sm btn-success" @onclick="Resume"><i class="bi bi-play-fill me-1"></i>Resume all</button>
+    </div>
+}
 
 @if (_jobs.Count == 0)
 {
@@ -31,7 +54,14 @@ else
             {
                 <li class="list-group-item">
                     <div class="d-flex flex-wrap align-items-center gap-2">
-                        <span class="badge text-bg-@job.State.Css()">@job.State</span>
+                        @if (Queue.Paused && job.Open)
+                        {
+                            <span class="badge text-bg-warning" title="@job.State until Resume all"><i class="bi bi-pause-fill"></i>Paused</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-@job.State.Css()">@job.State</span>
+                        }
                         <i class="bi @(job.Kind switch { JobKind.Copy => "bi-hdd-network", JobKind.Extras => "bi-collection-play", _ => "bi-file-earmark-zip" })"
                            title="@(job.Kind switch { JobKind.Copy => "Copy from External", JobKind.Extras => "Copy as extras", _ => "Unpack" })"></i>
                         <span class="fw-semibold text-break me-auto">@job.Name</span>
@@ -59,10 +89,17 @@ else
                     @if (job.State == JobState.Running && Queue.RunningId == job.Id)
                     {
                         <div class="progress mt-2" role="progressbar" aria-valuenow="@Queue.Progress" aria-valuemin="0" aria-valuemax="100" style="height: 1.1rem">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: @(Queue.Progress)%">@(Queue.Progress)%</div>
+                            <div class="progress-bar @(Queue.Paused ? "bg-warning text-dark" : "progress-bar-striped progress-bar-animated")" style="width: @(Queue.Progress)%">@(Queue.Progress)%</div>
                         </div>
                         <div class="small text-body-secondary mt-1">
-                            <i class="bi bi-hourglass-split me-1"></i>@(Queue.Remaining() is { Length: > 0 } left ? left : "Working out the time left...")
+                            @if (Queue.Paused)
+                            {
+                                <i class="bi bi-pause-fill me-1"></i>@("Paused: it carries on from here at Resume all.")
+                            }
+                            else
+                            {
+                                <i class="bi bi-hourglass-split me-1"></i>@(Queue.Remaining() is { Length: > 0 } left ? left : "Working out the time left...")
+                            }
                         </div>
                     }
                     @if (job.Message.Length > 0)
@@ -110,6 +147,37 @@ else
         {
             _open.Add(id);
         }
+    }
+
+    private string PausedText()
+    {
+        var running = _jobs.FirstOrDefault(j => j.State == JobState.Running);
+        var queued = _jobs.Count(j => j.State == JobState.Queued);
+        var parts = new List<string>();
+        if (running != null)
+        {
+            parts.Add($"{running.Name} waits at {Queue.Progress}%.");
+        }
+
+        parts.Add(queued switch
+        {
+            0 => "New jobs wait in the queue until Resume all.",
+            1 => "1 job waits in the queue.",
+            _ => $"{queued} jobs wait in the queue."
+        });
+        return string.Join(" ", parts);
+    }
+
+    private void Pause()
+    {
+        Queue.PauseAll();
+        Toasts.Show("Paused all jobs.", "warning");
+    }
+
+    private void Resume()
+    {
+        Queue.ResumeAll();
+        Toasts.Show("Resumed all jobs.", "success");
     }
 
     private void Cancel(Job job)

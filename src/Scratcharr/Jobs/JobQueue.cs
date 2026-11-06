@@ -11,17 +11,30 @@ namespace Scratcharr.Jobs;
 /// <summary>
 /// Runs jobs one at a time: unpacks (7-Zip) and copies from USB. Each writes into "&lt;target&gt;.unpacking" or
 /// "&lt;target&gt;.copying", which gets its real name only when everything is there, so Ripparr and the arr apps
-/// never see half a disc or half a file. Archives and USB disks are only read.
+/// never see half a disc or half a file. Archives and USB disks are only read. Pause all holds the queue (see
+/// <see cref="PauseGate"/>).
 /// </summary>
 public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, ScanService scans, ILogger<JobQueue> logger)
     : BackgroundService
 {
     private const int LogLines = 300;
 
+    /// <summary>The settings key holding "1" while the queue is paused.</summary>
+    private const string PausedKey = "jobs.paused";
+
     private readonly ScratcharrOptions _options = options.Value;
     private readonly Channel<long> _queue = Channel.CreateUnbounded<long>();
     private readonly Dictionary<long, CancellationTokenSource> _running = [];
     private readonly Lock _lock = new();
+    private readonly PauseGate _pause = new(store.Setting(PausedKey) == "1");
+
+    /// <summary>Extras jobs stopped by Pause all: they go back to the queue instead of being cancelled.</summary>
+    private readonly HashSet<long> _requeue = [];
+
+    private JobKind? _runningKind;
+
+    /// <summary>Pause all is on: no job starts, the running one waits where it is.</summary>
+    public bool Paused => _pause.Paused;
 
     /// <summary>Percent done of the running job.</summary>
     public int Progress { get; private set; }
@@ -38,6 +51,11 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
     public string Remaining(DateTime? nowUtc = null)
     {
         var now = nowUtc ?? DateTime.UtcNow;
+        if (RunningId != null && Paused)
+        {
+            return "Paused";
+        }
+
         if (RunningId == null || Eta.Left(now) is not { } left)
         {
             return "";
@@ -140,6 +158,49 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         return null;
     }
 
+    /// <summary>
+    /// Holds the queue: no job starts, a running copy waits before its next block and a running unpack's 7-Zip is
+    /// stopped, both carrying on where they were at Resume all. A running extras copy stops and goes back to the queue
+    /// (the extras already in the library are skipped when it carries on). Saved, so it stays paused after a restart.
+    /// </summary>
+    public void PauseAll()
+    {
+        if (Paused)
+        {
+            return;
+        }
+
+        store.SetSetting(PausedKey, "1");
+        _pause.Pause();
+        lock (_lock)
+        {
+            if (RunningId is { } id && _runningKind == JobKind.Extras && _running.TryGetValue(id, out var source))
+            {
+                _requeue.Add(id);
+                source.Cancel();
+            }
+        }
+
+        logger.LogInformation("Paused all jobs");
+        Changed?.Invoke();
+    }
+
+    /// <summary>Lets the running job carry on and the queued ones start again, oldest first.</summary>
+    public void ResumeAll()
+    {
+        if (!Paused)
+        {
+            return;
+        }
+
+        store.SetSetting(PausedKey, null);
+        Eta.Reset(); // the pause would make it look slower than it is
+        _pause.Resume();
+        logger.LogInformation("Resumed all jobs");
+        _queue.Writer.TryWrite(0);
+        Changed?.Invoke();
+    }
+
     /// <summary>Stops a running job, or takes a queued one out of the queue.</summary>
     public void Cancel(long id)
     {
@@ -178,17 +239,24 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
                 }
             }
 
-            _queue.Writer.TryWrite(job.Id);
         }
 
-        await foreach (var id in _queue.Reader.ReadAllAsync(stoppingToken))
-        {
-            if (store.Job(id) is not { State: JobState.Queued } job)
-            {
-                continue;
-            }
+        _queue.Writer.TryWrite(0);
 
-            await RunAsync(job, stoppingToken);
+        // Each message only wakes the loop: it then runs every queued job, oldest first, waiting while paused.
+        await foreach (var _ in _queue.Reader.ReadAllAsync(stoppingToken))
+        {
+            while (true)
+            {
+                stoppingToken.ThrowIfCancellationRequested();
+                await _pause.WaitAsync(stoppingToken);
+                if (store.Jobs(0).FirstOrDefault(j => j.State == JobState.Queued) is not { } job)
+                {
+                    break;
+                }
+
+                await RunAsync(job, stoppingToken);
+            }
         }
     }
 
@@ -198,6 +266,7 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         lock (_lock)
         {
             _running[job.Id] = cancel;
+            _runningKind = job.Kind;
         }
 
         var log = new Queue<string>();
@@ -244,6 +313,15 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
             Log("Scratcharr stopped.");
             job = job with { State = JobState.Queued, Message = Interrupted(job) };
         }
+        catch (OperationCanceledException) when (Requeued(job.Id))
+        {
+            Log("Paused.");
+            job = job with
+            {
+                State = JobState.Queued,
+                Message = "Paused: it carries on at Resume all, skipping the extras already in the library."
+            };
+        }
         catch (OperationCanceledException)
         {
             Clean(partial);
@@ -277,9 +355,12 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
             lock (_lock)
             {
                 _running.Remove(job.Id);
+                _requeue.Remove(job.Id);
+                _runningKind = null;
             }
 
-            job = job with { Finished = DateTime.UtcNow, Log = string.Join('\n', log) };
+            // A job back in the queue (Scratcharr stopping, Pause all) has not finished.
+            job = job with { Finished = job.Open ? null : DateTime.UtcNow, Log = string.Join('\n', log) };
             store.UpdateJob(job);
             logger.LogInformation("{Kind} {Id} {State}: {Message}", job.Kind, job.Id, job.State, job.Message);
             RunningId = null;
@@ -288,6 +369,14 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
             {
                 scans.ScanNow();
             }
+        }
+    }
+
+    private bool Requeued(long id)
+    {
+        lock (_lock)
+        {
+            return _requeue.Contains(id);
         }
     }
 
@@ -318,7 +407,7 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
         Directory.CreateDirectory(_options.DiscsFolder);
         Clean(partial);
         Log($"7-Zip: {job.Source} -> {partial}");
-        var result = await SevenZip.ExtractAsync(_options.Tools.SevenZip, job.Source, partial, Report, Log, ct);
+        var result = await SevenZip.ExtractAsync(_options.Tools.SevenZip, job.Source, partial, Report, Log, ct, _pause);
         if (result.ExitCode != 0)
         {
             Log(result.Error.Trim());
@@ -365,7 +454,7 @@ public sealed class JobQueue(IOptions<ScratcharrOptions> options, Store store, S
             {
                 list.Append(file.Line).Append('\n');
                 store.SetSetting(CopiedKey(job.Id), list.ToString());
-            });
+            }, _pause);
         ForgetCopied(job.Id);
 
         if (Directory.Exists(partial))

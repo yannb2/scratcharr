@@ -91,9 +91,12 @@ public static partial class SevenZip
         return new ArchiveListing { Entries = ParseListing(output.ToString()) };
     }
 
-    /// <summary>Extracts into <paramref name="target"/> (created by 7-Zip), calling <paramref name="progress"/> with 0-100.</summary>
+    /// <summary>
+    /// Extracts into <paramref name="target"/> (created by 7-Zip), calling <paramref name="progress"/> with 0-100.
+    /// While <paramref name="pause"/> is paused, 7-Zip is stopped (SIGSTOP) and carries on where it was at Resume all.
+    /// </summary>
     public static Task<RunResult> ExtractAsync(string tool, string start, string target, Action<int> progress, Action<string> log,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken, Jobs.PauseGate? pause = null) =>
         RunAsync(tool, ["x", "-y", "-bb1", "-bsp1", "-bso1", "-bse2", NoPassword, "-o" + target, "--", start], line =>
         {
             if (Percent(line) is { } percent)
@@ -104,7 +107,7 @@ public static partial class SevenZip
             {
                 log(line.Trim());
             }
-        }, Timeout.InfiniteTimeSpan, cancellationToken);
+        }, Timeout.InfiniteTimeSpan, cancellationToken, pause);
 
     /// <summary>
     /// The entries after the "----------" line of <c>7zz l -slt</c> (the block before it is the archive itself).
@@ -211,7 +214,7 @@ public static partial class SevenZip
     /// and the backspaces 7-Zip uses to redraw its percentage) to <paramref name="onLine"/>.
     /// </summary>
     private static async Task<RunResult> RunAsync(string tool, IEnumerable<string> arguments, Action<string> onLine, TimeSpan timeout,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Jobs.PauseGate? pause = null)
     {
         var startInfo = new ProcessStartInfo(tool)
         {
@@ -239,6 +242,16 @@ public static partial class SevenZip
         }
 
         process.StandardInput.Close();
+        void OnPause(bool paused) => Hold(process, paused);
+        if (pause != null)
+        {
+            pause.Changed += OnPause;
+            if (pause.Paused)
+            {
+                Hold(process, true);
+            }
+        }
+
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (timeout != Timeout.InfiniteTimeSpan)
         {
@@ -292,7 +305,41 @@ public static partial class SevenZip
 
             throw;
         }
+        finally
+        {
+            if (pause != null)
+            {
+                pause.Changed -= OnPause;
+            }
+        }
     }
+
+    private const int SigCont = 18;
+    private const int SigStop = 19;
+
+    /// <summary>Stops (SIGSTOP) or continues (SIGCONT) a running 7-Zip. A stopped one can still be killed by Cancel.</summary>
+    private static void Hold(Process process, bool stop)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                _ = Kill(process.Id, stop ? SigStop : SigCont);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Exited or disposed meanwhile.
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "kill", SetLastError = true)]
+    private static extern int Kill(int pid, int signal);
 
     [GeneratedRegex(@"^\s*(\d{1,3})%")]
     private static partial Regex PercentPattern();

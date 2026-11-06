@@ -1,4 +1,5 @@
 using System.IO.Hashing;
+using Scratcharr.Jobs;
 
 namespace Scratcharr.Usb;
 
@@ -38,8 +39,10 @@ public static class UsbCopy
     /// <param name="copied">Files finished before a restart (empty for a new copy): kept when the original and the copy
     /// still have the same length and the original the same modified time; anything else is copied again.</param>
     /// <param name="fileDone">Called after each file is written and flushed, to remember it for a resume.</param>
+    /// <param name="pause">Pause all: the copy waits before its next block until Resume all.</param>
     public static async Task<CopyResult> CopyAsync(string source, string target, bool verify, Action<long, long> progress,
-        Action<string> log, CancellationToken ct, IReadOnlyCollection<CopiedFile>? copied = null, Action<CopiedFile>? fileDone = null)
+        Action<string> log, CancellationToken ct, IReadOnlyCollection<CopiedFile>? copied = null, Action<CopiedFile>? fileDone = null,
+        PauseGate? pause = null)
     {
         var before = (copied ?? []).GroupBy(c => c.Path).ToDictionary(g => g.Key, g => g.Last());
         var resumed = 0;
@@ -81,7 +84,7 @@ public static class UsbCopy
             {
                 output.SetLength(file.Length);
                 int read;
-                while ((read = await input.ReadAsync(buffer, ct)) > 0)
+                while ((read = await ReadAsync(input, buffer, pause, ct)) > 0)
                 {
                     hash.Append(buffer.AsSpan(0, read));
                     await output.WriteAsync(buffer.AsMemory(0, read), ct);
@@ -124,7 +127,7 @@ public static class UsbCopy
                 var hash = new XxHash3();
                 await using var input = new FileStream(to, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.SequentialScan | FileOptions.Asynchronous);
                 int read;
-                while ((read = await input.ReadAsync(buffer, ct)) > 0)
+                while ((read = await ReadAsync(input, buffer, pause, ct)) > 0)
                 {
                     hash.Append(buffer.AsSpan(0, read));
                     done += read;
@@ -144,6 +147,17 @@ public static class UsbCopy
     }
 
     /// <summary>Gives the copied folders the modified times of the originals, deepest first.</summary>
+    /// <summary>The next block, after waiting out a pause (the files stay open while paused).</summary>
+    private static async ValueTask<int> ReadAsync(FileStream input, byte[] buffer, PauseGate? pause, CancellationToken ct)
+    {
+        if (pause != null)
+        {
+            await pause.WaitAsync(ct);
+        }
+
+        return await input.ReadAsync(buffer, ct);
+    }
+
     private static void KeepFolderTimes(string source, string target)
     {
         var folders = Directory.GetDirectories(source, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint })
