@@ -20,7 +20,7 @@ the external disks and shares are only read, and nothing is deleted before 7 day
 | Unpack | Every archive set (`.partNN.rar`, `.rar` + `.r00`, `.7z`, `.7z.001`, `.zip`) per item: parts, size, Look inside (7-Zip's listing: ISOs, BDMV, videos, unpacked size), a folder name, Unpack |
 | External | The USB disks and mounted shares in `/mnt/pc`, then their folders: what each entry holds (disc, video, other, archives with an Unpack link), its size, where it goes, and whether it was copied already. Anything that can't be read (Windows' System Volume Information...) is listed in red: click it for the error. Tick, pick Auto / import / discs, Copy |
 | Recycle | What Clean up moved away: days left, Restore, Delete, Empty now; the action log; the weekly ntfy summary (Send now) |
-| Jobs | Unpacks and copies one at a time with a progress bar, the time left and speed, the log, Cancel, and Open in Ripparr for each ISO or BDMV folder that came out |
+| Jobs | Unpacks and copies one at a time with a progress bar, the time left and speed, the log, Cancel, Open in Ripparr for each ISO or BDMV folder that came out, and Pause all / Resume all |
 | Logs | The last 2000 lines since the app started, newest first, with search and a level filter (shared arrkit code) |
 | Tools | 7-Zip's version, its pin and the newest release |
 | Settings | Integrations: connections (saved in the database, they win over the environment variables). Protected folders: add or remove the folders Scratcharr never touches (saved in the database, they win over `Protected__N`). Auto clean-up: opt-in rules and the low space alert. Settings check (with the folder structure card): per download client category, its folder, which arr app uses it, who removes finished downloads, with warnings about gaps (the count shows on the tab and next to Settings in the menu). Status: the running values |
@@ -85,8 +85,22 @@ Environment variables (`Scratcharr__...`), or `appsettings.json`:
 See [compose.example.yaml](compose.example.yaml). Port 8188.
 
 `/api/stats` (no key) gives `items`, `strays`, `strayBytes`, `toReview`, `toReviewBytes`, `active`, `manual`,
-`usedBytes`, `freeBytes`, `scanning`, `lastScan`, `toolUpdates`, `archives`, `jobs`, `recycled`, `recycledBytes`
-for a Homepage tile.
+`usedBytes`, `freeBytes`, `scanning`, `lastScan`, `toolUpdates`, `archives`, `jobs`, `recycled`, `recycledBytes`,
+`jobsQueued`, `jobsRunning`, `jobsDone`, `jobsFailed`, `jobStatus` (one line, starting with "Paused: " while paused),
+`jobsPaused`, `space`, `review` for a Homepage tile.
+
+### Pause all
+
+**Pause all** on the Jobs page holds the job queue until **Resume all**: nothing new starts (jobs queued meanwhile
+wait too), and the running job waits where it is.
+
+- A copy from External stops before its next 4 MB block. The files stay open, so leave the disk or share connected.
+- An unpack stops 7-Zip itself (`SIGSTOP`), which carries on from the same spot at Resume all (`SIGCONT`).
+- An extras copy goes back to the queue; when it carries on, the extras already in the library are skipped.
+
+Cancel still works on a paused job. The pause is saved in the database, so the queue stays paused after a restart
+(the running job is then queued again as usual: a copy carries on from its finished files, an unpack starts over).
+The menu shows "Jobs · paused" while it lasts.
 
 ### Unpack
 

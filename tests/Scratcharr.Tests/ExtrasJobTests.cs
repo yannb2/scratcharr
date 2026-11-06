@@ -113,6 +113,49 @@ public sealed class ExtrasJobTests
     }
 
     [TestMethod]
+    public async Task Pause_all_puts_a_running_extras_copy_back_in_the_queue_and_resume_all_finishes_it()
+    {
+        var (queue, store) = Make(Options());
+        var making = File("downloads/import/Heat.Extras/Making.Of.mkv", 2_000_000);
+        var source = Path.GetDirectoryName(making)!;
+        var paused = new TaskCompletionSource();
+        var finished = new TaskCompletionSource();
+        queue.Changed += () =>
+        {
+            var job = queue.Jobs().SingleOrDefault();
+            if (!queue.Paused && !paused.Task.IsCompleted && queue.RunningId != null)
+            {
+                queue.PauseAll(); // as soon as it starts
+            }
+            else if (queue.Paused && job is { State: JobState.Queued, Started: not null })
+            {
+                paused.TrySetResult();
+            }
+            else if (job is { Open: false })
+            {
+                finished.TrySetResult();
+            }
+        };
+
+        Assert.IsNull(queue.QueueExtras(source, Heat, [new ExtraFile(making, "behind the scenes", "Making Of")]));
+        using var stop = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+        await queue.StartAsync(stop.Token);
+        await paused.Task.WaitAsync(stop.Token);
+
+        var waiting = queue.Jobs().Single();
+        StringAssert.StartsWith(waiting.Message, "Paused:");
+        Assert.IsNull(waiting.Finished);
+        Assert.IsNotNull(store.Setting(ExtrasJob.Key(waiting.Id)), "the list is kept for Resume all");
+
+        queue.ResumeAll();
+        await finished.Task.WaitAsync(stop.Token);
+        await queue.StopAsync(CancellationToken.None);
+        var job = queue.Jobs().Single();
+        Assert.AreEqual(JobState.Done, job.State, job.Message);
+        Assert.IsTrue(System.IO.File.Exists(Path.Combine(Heat, "behind the scenes", "Making Of.mkv")));
+    }
+
+    [TestMethod]
     public void Refuses_what_it_must_not_do()
     {
         var video = File("downloads/import/Extra.mkv");
