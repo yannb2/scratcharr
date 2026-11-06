@@ -42,9 +42,12 @@ COPY --from=build /app ./
 RUN mkdir -p /config && chown $APP_UID /config
 VOLUME /config
 
+# UTF-8 locale: in the plain C locale tools garble non-ASCII file names ("Me²").
 # The pins show on the Tools page next to what each tool reports and the newest upstream version.
 ENV ASPNETCORE_HTTP_PORTS=8188 \
     TZ=Etc/UTC \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
     SCRATCHARR_PIN_7ZIP=${SEVENZIP_VERSION}
 EXPOSE 8188
 
