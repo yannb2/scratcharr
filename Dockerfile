@@ -1,6 +1,6 @@
 # Scratcharr: the app plus the tools it drives, each at a pinned version.
 # The weekly "Tool updates" workflow bumps these ARG lines in a pull request; nothing updates on its own.
-ARG SEVENZIP_VERSION=26.05
+ARG SEVENZIP_VERSION=26.06
 
 # 7-Zip (7zz) from the official ip7z releases: unpacks .rar sets (RAR4 and RAR5), .7z and .zip.
 FROM debian:13-slim AS sevenzip
