@@ -48,7 +48,7 @@ public sealed class DiskAndSettingsTests
         File("usenet/complete/radarr/Movie.C/c.mkv");
         File("usenet/incomplete/Job/part.rar");
         File("import/home.mkv");
-        File("firefox/subs.zip");
+        File("browser/subs.zip");
         File("ripparr/work/job-1/stream.hevc");
         File("rips/music/Artist - Album (2001)/01.flac");
         File("film.iso");
@@ -57,10 +57,10 @@ public sealed class DiskAndSettingsTests
         var names = items.Select(i => $"{i.Folder}:{i.Category}:{i.Name}").OrderBy(n => n, StringComparer.Ordinal).ToList();
         Assert.AreEqual(string.Join("|", new[]
         {
+            "Browser::subs.zip",
             "Downloads::film.iso",
             "Downloads::ripparr",
             "Downloads::rips",
-            "Firefox::subs.zip",
             "Import::home.mkv",
             "Torrents::Something",
             "Torrents::loose.iso",
@@ -133,7 +133,7 @@ public sealed class DiskAndSettingsTests
         var rel = structure.Select(f => $"{Path.GetRelativePath(_root, f.Path)}:{f.Exists}").ToList();
         CollectionAssert.AreEqual(new[]
         {
-            "discs:False", "firefox:False", "import:False", "ripparr:False", "rips:False", "torrents:True", "torrents/manual:False", "torrents/radarr:True",
+            "browser:False", "discs:False", "import:False", "ripparr:False", "rips:False", "torrents:True", "torrents/manual:False", "torrents/radarr:True",
             "usenet/complete:False", "usenet/incomplete:False"
         }, rel, string.Join(" ", rel));
 
